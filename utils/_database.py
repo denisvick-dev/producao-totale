@@ -1,82 +1,213 @@
 # utils/_database.py
 import os
-from typing import Any, Dict, List, Optional
-import gspread
-from google.oauth2.service_account import Credentials
+import io
+import requests
 import pandas as pd
 import streamlit as st
+from typing import Any, Dict, List, Optional
 
-from utils._config import HEADERS, SPREADSHEET_ID, WORKSHEET_NAME, get_credentials_dict
+import gspread
+from google.oauth2.service_account import Credentials
+from google.auth.transport.requests import Request
+
+# Importa as configurações do seu projeto
+from ._config import (
+    HEADERS_USERS,
+    PRODUCAO_SPREADSHEET_ID,
+    USERS_SPREADSHEET_ID,
+    WORKSHEET_NAME,
+    get_credentials_dict,
+)
 
 
 class GoogleSheetsDB:
     def __init__(self) -> None:
         self.client: gspread.Client
-        self.spreadsheet: gspread.Spreadsheet
-        self.worksheet: gspread.Worksheet
+        self.credentials: Credentials
         self._connect()
 
     def _connect(self) -> None:
+        # Escopos necessários para ler Sheets e baixar arquivos do Drive
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/drive"
         ]
 
         creds_dict = get_credentials_dict()
         if creds_dict:
-            credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            self.credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         else:
             creds_file = "credentials.json"
             if not os.path.exists(creds_file):
                 raise FileNotFoundError("❌ Arquivo 'credentials.json' não encontrado!")
-            credentials = Credentials.from_service_account_file(creds_file, scopes=scopes)
+            self.credentials = Credentials.from_service_account_file(creds_file, scopes=scopes)
 
-        self.client = gspread.authorize(credentials)
-        self.spreadsheet = self.client.open_by_key(SPREADSHEET_ID)
+        self.client = gspread.authorize(self.credentials)
 
-        ws: Optional[gspread.Worksheet] = None
-        if isinstance(WORKSHEET_NAME, int):
-            ws = self.spreadsheet.get_worksheet(WORKSHEET_NAME)
-        else:
-            try:
-                ws = self.spreadsheet.worksheet(WORKSHEET_NAME)
-            except gspread.WorksheetNotFound:
-                ws = None
-
+    def _get_worksheet(self, spreadsheet_id: str):
+        """Tenta abrir a planilha como Google Sheets nativo."""
+        spreadsheet = self.client.open_by_key(spreadsheet_id)
+        ws = spreadsheet.get_worksheet(WORKSHEET_NAME) if isinstance(WORKSHEET_NAME, int) else None
         if ws is None:
-            ws = self.spreadsheet.sheet1
+            ws = spreadsheet.sheet1
+        return ws
 
-        self.worksheet = ws
-
-    def get_all_records(self) -> List[Dict[str, Any]]:
-        """Retorna todas as linhas da planilha como lista de dicionários."""
+    def get_users_dataframe(self) -> pd.DataFrame:
+        """Base de usuários (Geralmente é Sheets nativo)."""
         try:
-            return self.worksheet.get_all_records()
-        except Exception:
-            return []
-
-    def get_dataframe(self) -> pd.DataFrame:
-        """Carrega os dados da planilha diretamente em um DataFrame do Pandas."""
-        records = self.get_all_records()
-        if records:
-            return pd.DataFrame(records)
-        return pd.DataFrame(columns=HEADERS)
+            ws = self._get_worksheet(USERS_SPREADSHEET_ID)
+            records = ws.get_all_records()
+            return pd.DataFrame(records) if records else pd.DataFrame(columns=HEADERS_USERS)
+        except Exception as e:
+            st.error(f"Erro na base de usuários: {e}")
+            return pd.DataFrame(columns=HEADERS_USERS)
 
     def find_user_by_login_or_user(self, identifier: str) -> Optional[Dict[str, Any]]:
-        """Busca usuário comparando tanto a coluna 'Login' quanto a 'User'."""
-        identifier_clean = identifier.strip().lower()
-        records = self.get_all_records()
-
-        for row in records:
-            login_val = str(row.get("Login", "")).strip().lower()
-            user_val = str(row.get("User", "")).strip().lower()
-
-            if identifier_clean in (login_val, user_val):
-                return row
+        df = self.get_users_dataframe()
+        if df.empty: return None
+        
+        ident = identifier.strip().lower()
+        for _, row in df.iterrows():
+            if ident in [str(row.get("Login", "")).lower(), str(row.get("User", "")).lower()]:
+                return {str(key): value for key, value in row.to_dict().items()}
         return None
 
+    # ========================================================
+    # LOGICA ESPECIAL PARA PRODUÇÃO (EXCEL .XLSX)
+    # ========================================================
+    
+    def _download_binary_excel(self, file_id: str) -> pd.DataFrame:
+        """
+        Faz o download de um arquivo que é EXCEL (.xlsx) dentro do Drive.
+        Usa o parâmetro alt=media para baixar o arquivo binário original.
+        """
+        if not self.credentials.valid:
+            self.credentials.refresh(Request())
 
-# Limpa o cache ao recarregar a classe para evitar erros de atributo antigo
-@st.cache_resource(ttl=600)
+        # URL para baixar arquivos binários (não-nativos do Google) do Drive
+        url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+        
+        headers = {"Authorization": f"Bearer {self.credentials.token}"}
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            # Lê o binário .xlsx usando engine openpyxl
+            return pd.read_excel(io.BytesIO(response.content), engine='openpyxl')
+        else:
+            st.error(f"Erro no download binário: {response.status_code} - {response.text}")
+            return pd.DataFrame()
+
+    def get_producao_dataframe(self) -> pd.DataFrame:
+        """
+        Carrega produção unificando as abas Prod + Gpon.
+        Mantém coluna auxiliar __origem__ para auditoria.
+        """
+        df_prod = self._ler_aba_producao("Prod")
+        df_gpon = self._ler_aba_producao("Gpon")
+
+        frames = []
+        if not df_prod.empty:
+            df_prod = df_prod.copy()
+            df_prod["__origem__"] = "Prod"
+            frames.append(df_prod)
+        if not df_gpon.empty:
+            df_gpon = df_gpon.copy()
+            df_gpon["__origem__"] = "Gpon"
+            frames.append(df_gpon)
+
+        if not frames:
+            # fallback: primeira aba (comportamento antigo)
+            try:
+                ws = self._get_worksheet(PRODUCAO_SPREADSHEET_ID)
+                if ws is not None:
+                    records = ws.get_all_records()
+                    df = pd.DataFrame(records) if records else pd.DataFrame()
+                    if not df.empty:
+                        df["__origem__"] = "Geral"
+                    return df
+            except Exception:
+                pass
+            return pd.DataFrame()
+
+        return pd.concat(frames, ignore_index=True)
+
+
+    def _ler_aba_producao(self, nome_aba: str) -> pd.DataFrame:
+        """Lê uma aba específica da planilha de produção (Sheets nativo ou Excel)."""
+        try:
+            spreadsheet = self.client.open_by_key(PRODUCAO_SPREADSHEET_ID)
+            try:
+                ws = spreadsheet.worksheet(nome_aba)
+                records = ws.get_all_records()
+                return pd.DataFrame(records) if records else pd.DataFrame()
+            except Exception:
+                # Se for arquivo Excel (.xlsx), baixa e lê a aba pelo nome
+                return self._download_excel_sheet(PRODUCAO_SPREADSHEET_ID, nome_aba)
+        except Exception:
+            try:
+                return self._download_excel_sheet(PRODUCAO_SPREADSHEET_ID, nome_aba)
+            except Exception:
+                return pd.DataFrame()
+
+
+    def _download_excel_sheet(self, file_id: str, sheet_name: str) -> pd.DataFrame:
+        """Download binário do Excel e leitura de uma aba específica."""
+        import io
+        import requests
+        from google.auth.transport.requests import Request
+
+        if not self.credentials.valid:
+            self.credentials.refresh(Request())
+
+        url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+        headers = {"Authorization": f"Bearer {self.credentials.token}"}
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            return pd.DataFrame()
+
+        try:
+            return pd.read_excel(
+                io.BytesIO(response.content),
+                sheet_name=sheet_name,
+                engine="openpyxl",
+            )
+        except Exception:
+            # tenta nomes alternativos comuns
+            try:
+                xl = pd.ExcelFile(io.BytesIO(response.content), engine="openpyxl")
+                sheet_name_str = str(sheet_name).strip().lower()
+                for name in xl.sheet_names:
+                    if str(name).strip().lower() == sheet_name_str:
+                        return pd.read_excel(xl, sheet_name=name)
+            except Exception:
+                return pd.DataFrame()
+            return pd.DataFrame()
+
+
+    def get_producao_by_tecnico(
+        self, tecnico: str, login_code: str, user_code: str
+    ) -> pd.DataFrame:
+        df = self.get_producao_dataframe()
+        if df.empty:
+            return df
+
+        targets = {
+            str(tecnico).strip().lower(),
+            str(login_code).strip().lower(),
+            str(user_code).strip().lower(),
+        }
+        targets.discard("")
+
+        mask = pd.Series(False, index=df.index)
+        for col in df.columns:
+            if col == "__origem__":
+                continue
+            mask |= df[col].astype(str).str.strip().str.lower().isin(targets)
+
+        return df[mask].reset_index(drop=True)
+
+@st.cache_resource(ttl=300)
 def get_db() -> GoogleSheetsDB:
     return GoogleSheetsDB()

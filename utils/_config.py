@@ -1,14 +1,16 @@
 # utils/_config.py
 import streamlit as st
+from typing import Optional, Dict, Any
 
-# ID da sua planilha extraído do link
-SPREADSHEET_ID = "1MolnI0nY4SHWsuqqpa0QTKJ9Phuq1RH5YB2caWKuyVE"
-WORKSHEET_NAME = 0  # Pega a primeira aba
+USERS_SPREADSHEET_ID: str = "1MolnI0nY4SHWsuqqpa0QTKJ9Phuq1RH5YB2caWKuyVE"
+PRODUCAO_SPREADSHEET_ID: str = "11Dp9WdZYUrT_LBvfo07Mi8muKXZykU7v"
 
-# Colunas exatas da sua planilha
-HEADERS = ["Técnico", "Login", "User", "Pass"]
+WORKSHEET_NAME: int = 0  # Primeira aba de cada planilha
 
-def get_credentials_dict():
+HEADERS_USERS = ["Técnico", "Login", "User", "Pass"]
+
+
+def get_credentials_dict() -> Optional[Dict[str, Any]]:
     """Retorna credenciais do Streamlit Secrets (se disponível)."""
     if "gcp_service_account" in st.secrets:
         return dict(st.secrets["gcp_service_account"])
