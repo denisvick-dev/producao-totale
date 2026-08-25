@@ -9,8 +9,8 @@ Uso em qualquer página:
     aplicar_estilo()
 
 Características unificadas:
-- Fonte corporativa global (Inter + Manrope)
-- Tema Plotly global corporativo
+- Fonte corporativa global super Premium (Inter para texto + Manrope para títulos/KPIs)
+- Tema Plotly global corporativo integrado com a tipografia do sistema
 - Sidebar TOTALE: Laranja metálico limpo (sem reflexo) + borda no sombreamento
 - Selecionador creme/pêssego com borda laranja (estilo pill)
 - Heros TOTALE (Gradiente Imagem + Azul com faixa laranja)
@@ -42,11 +42,11 @@ FmtDict = dict[str, BaseFormatter | None]
 
 
 # ====================================================
-# TIPOGRAFIA
+# TIPOGRAFIA CORPORATIVA (INTER + MANROPE)
 # ====================================================
-FONTE_TITULO = "'Manrope', 'Segoe UI', Arial, sans-serif"
-FONTE_TEXTO = "'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-FONTE_CODIGO = "'JetBrains Mono', Consolas, 'Courier New', monospace"
+FONTE_TITULO = "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+FONTE_TEXTO = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+FONTE_CODIGO = "'JetBrains Mono', 'Fira Code', Consolas, monospace"
 
 _GOOGLE_FONTS_URLS = (
     "https://fonts.googleapis.com/icon?family=Material+Icons",
@@ -54,8 +54,8 @@ _GOOGLE_FONTS_URLS = (
     ":opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block",
     "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
     ":opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block",
-    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800"
-    "&family=Manrope:wght@400;500;600;700;800;900"
+    "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800"
+    "&family=Manrope:wght@300;400;500;600;700;800;900"
     "&family=JetBrains+Mono:wght@400;500&display=swap",
 )
 
@@ -112,32 +112,32 @@ _PLOTLY_COLORWAY = [
 
 
 # ====================================================
-# PLOTLY
+# PLOTLY (INTEGRAÇÃO DE FONTES CORPORATIVAS)
 # ====================================================
 def _configurar_plotly_global() -> None:
     template = go.layout.Template(
         layout=go.Layout(
-            font=dict(family=FONTE_TEXTO, size=13, color=COR_TEXTO),
+            font=dict(family="Inter, sans-serif", size=13, color=COR_TEXTO),
             title=dict(
-                font=dict(family=FONTE_TITULO, size=20, color=COR_TEXTO),
+                font=dict(family="Manrope, sans-serif", size=20, color=COR_TEXTO),
                 x=0.02,
                 xanchor="left",
             ),
-            legend=dict(font=dict(family=FONTE_TEXTO, size=12, color=COR_TEXTO_2)),
+            legend=dict(font=dict(family="Inter, sans-serif", size=12, color=COR_TEXTO_2)),
             xaxis=dict(
-                tickfont=dict(family=FONTE_TEXTO, size=12, color=COR_TEXTO_2),
-                title_font=dict(family=FONTE_TEXTO, size=13, color=COR_TEXTO_2),
+                tickfont=dict(family="Inter, sans-serif", size=12, color=COR_TEXTO_2),
+                title_font=dict(family="Inter, sans-serif", size=13, color=COR_TEXTO_2),
                 gridcolor="#F1F5F9",
                 zerolinecolor="#CBD5E1",
             ),
             yaxis=dict(
-                tickfont=dict(family=FONTE_TEXTO, size=12, color=COR_TEXTO_2),
-                title_font=dict(family=FONTE_TEXTO, size=13, color=COR_TEXTO_2),
+                tickfont=dict(family="Inter, sans-serif", size=12, color=COR_TEXTO_2),
+                title_font=dict(family="Inter, sans-serif", size=13, color=COR_TEXTO_2),
                 gridcolor="#F1F5F9",
                 zerolinecolor="#CBD5E1",
             ),
             hoverlabel=dict(
-                font=dict(family=FONTE_TEXTO, size=13),
+                font=dict(family="Inter, sans-serif", size=13),
                 bgcolor="white",
                 bordercolor=COR_BORDA,
             ),
@@ -151,7 +151,7 @@ def _configurar_plotly_global() -> None:
 
 
 # ====================================================
-# FONTES
+# SUPORTE PARA FONTES NOS PAINÉIS
 # ====================================================
 def _injetar_fontes_no_head_pai() -> None:
     urls_js = ", ".join(f'"{u}"' for u in _GOOGLE_FONTS_URLS)
@@ -205,31 +205,17 @@ def _build_links_html() -> str:
 
 
 # ====================================================
-# CSS GLOBAL
+# CSS GLOBAL E TIPOGRAFIA DE ALTA FIDELIDADE
 # ====================================================
 def _injetar_css_global() -> None:
     links_html = _build_links_html()
 
     css = f"""{links_html}
         <style>
-        /* ═════════ FONT-FACE FALLBACK ═════════ */
-        @font-face {{
-            font-family: 'Material Icons';
-            font-style: normal; font-weight: 400; font-display: block;
-            src: url(https://fonts.gstatic.com/s/materialicons/v143/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2) format('woff2');
-        }}
-        @font-face {{
-            font-family: 'Material Symbols Rounded';
-            font-style: normal; font-weight: 400; font-display: block;
-            src: url(https://fonts.gstatic.com/s/materialsymbolsrounded/v206/syl0-zNym6YjUruM-QrEh7-nyTnjDwKNJ_190Fjzag.woff2) format('woff2');
-        }}
-        @font-face {{
-            font-family: 'Material Symbols Outlined';
-            font-style: normal; font-weight: 400; font-display: block;
-            src: url(https://fonts.gstatic.com/s/materialsymbolsoutlined/v206/kJEhBvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2) format('woff2');
-        }}
+        /* ═════════ IMPORTAÇÃO DIRETA DE FONTE (FALLBACK SEGURO) ═════════ */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 
-        /* ═════════ VARIÁVEIS ═════════ */
+        /* ═════════ VARIÁVEIS GLOBAIS ═════════ */
         :root {{
             --font-titulo:    {FONTE_TITULO};
             --font-texto:     {FONTE_TEXTO};
@@ -252,137 +238,115 @@ def _injetar_css_global() -> None:
             --shadow-lg: 0 10px 28px rgba(0,0,0,0.12);
         }}
 
-        /* ═════════ BASE — FONTE ═════════ */
-        html, body, .stApp,
-        [data-testid="stAppViewContainer"],
-        [data-testid="stMain"],
+        /* ═════════ OVERRIDES DE FONTES (FORÇADO PARA STREAMLIT) ═════════ */
+        /* Estilização Geral do App */
+        html, body, .stApp, 
+        [data-testid="stAppViewContainer"], 
+        [data-testid="stMain"], 
         [data-testid="stHeader"],
-        [data-testid="stSidebar"],
+        [data-testid="stSidebar"], 
         [data-testid="stToolbar"],
-        section[data-testid="stSidebar"] {{
+        [data-testid="stAppViewBlockContainer"] {{
             font-family: var(--font-texto) !important;
-        }}
-        p, label, div, li, a, button, input, select, textarea {{
-            font-family: var(--font-texto) !important;
-        }}
-        span:not([class*="material"]):not([class*="Icon"]):not([class*="icon"])
-            :not([data-testid*="Icon"]):not([data-testid*="icon"]) {{
-            font-family: var(--font-texto) !important;
+            color: var(--cor-texto);
         }}
 
-        /* ═════════ TÍTULOS ═════════ */
-        h1, h2, h3, h4, h5, h6,
-        .hero-title, .section-title, .kpi-value {{
-            font-family: var(--font-titulo) !important;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-        }}
-        h1, .hero-title {{
-            font-weight: 800;
-            letter-spacing: -0.6px;
-        }}
-
-        /* ═════════ WIDGETS STREAMLIT ═════════ */
+        /* Textos, Inputs, Labels e Parágrafos (Inter) */
+        p, label, div, li, a, button, input, select, textarea, span,
         [data-testid="stWidgetLabel"],
         [data-testid="stMarkdownContainer"],
-        [data-testid="stMetric"],
-        [data-testid="stMetricLabel"],
-        [data-baseweb="select"],
-        [data-baseweb="input"],
-        [data-baseweb="tab"] {{
+        [data-baseweb="select"] *,
+        [data-baseweb="input"] *,
+        [data-baseweb="tab"] *,
+        .stSelectbox, .stMultiSelect, .stSlider {{
             font-family: var(--font-texto) !important;
+        }}
+
+        /* Títulos e Cabeçalhos Dinâmicos (Manrope) */
+        h1, h2, h3, h4, h5, h6,
+        [data-testid="stHeader"] *,
+        .hero-title, .section-title, .kpi-value,
+        [data-testid="stMetricValue"],
+        .st-emotion-cache-10trblm {{
+            font-family: var(--font-titulo) !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.02em !important;
+        }}
+        
+        h1, .hero-title, .hero-t1-title, .hero-t2-title {{
+            font-weight: 800 !important;
+            letter-spacing: -0.04em !important;
+        }}
+
+        /* Streamlit Metrics (Manrope para Valores, Inter para Labels) */
+        [data-testid="stMetricLabel"] {{
+            font-family: var(--font-texto) !important;
+            font-weight: 500 !important;
+            color: var(--cor-texto-3) !important;
         }}
         [data-testid="stMetricValue"] {{
             font-family: var(--font-titulo) !important;
-            font-weight: 700;
+            font-weight: 800 !important;
             font-variant-numeric: tabular-nums;
         }}
 
-        /* ═════════ BOTÕES ═════════ */
+        /* Botões Globais (Inter de Alta Densidade) */
         .stButton button, .stDownloadButton button,
         .stFormSubmitButton button, button[kind] {{
             font-family: var(--font-texto) !important;
-            font-weight: 600;
-            letter-spacing: 0.2px;
+            font-weight: 600 !important;
+            letter-spacing: 0.01em !important;
+            border-radius: var(--radius-sm) !important;
         }}
 
-        /* ═════════ TABELAS ═════════ */
-        .stDataFrame, .stTable,
-        table, thead, tbody, tr, th, td {{
+        /* Dataframes e Tabelas (Inter + Tabular Numbers para Dados) */
+        .stDataFrame, .stTable, table, thead, tbody, tr, th, td,
+        [data-testid="stTable"] *,
+        div[class*="AgGrid"], div[class*="ag-theme"] {{
             font-family: var(--font-texto) !important;
         }}
-        th {{ font-weight: 700; letter-spacing: 0.4px; }}
-        td {{ font-variant-numeric: tabular-nums; }}
+        th {{ 
+            font-weight: 700 !important; 
+            font-family: var(--font-titulo) !important;
+        }}
+        td {{ 
+            font-variant-numeric: tabular-nums; 
+        }}
 
-        /* ═════════ CÓDIGO ═════════ */
-        code, pre, kbd, samp {{
+        /* Elementos de Código */
+        code, pre, kbd, samp, code span {{
             font-family: var(--font-codigo) !important;
         }}
 
-        /* ═════════ LAYOUT ═════════ */
+        /* Ajustes finos de Layout do Main Container */
         .main .block-container {{
-            padding-top: 1rem;
+            padding-top: 1.5rem;
             max-width: 1400px;
         }}
 
-        /* ═════════ SCROLLBAR ═════════ */
-        ::-webkit-scrollbar       {{ width: 10px; height: 10px; }}
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar       {{ width: 8px; height: 8px; }}
         ::-webkit-scrollbar-track {{ background: #F1F5F9; }}
-        ::-webkit-scrollbar-thumb {{ background: #CBD5E1; border-radius: 5px; }}
+        ::-webkit-scrollbar-thumb {{ background: #CBD5E1; border-radius: 4px; }}
         ::-webkit-scrollbar-thumb:hover {{ background: #94A3B8; }}
 
-        """ + """
-
         /* ═══════════════════════════════════════════════════
-        SIDEBAR — PRATA / CINZA METÁLICO CLARO
-        + detalhes AZUL (#012869) e LARANJA (#F37C04) TOTALE
+        SIDEBAR — ESTILO PREMIUM TOTALE
+        Fundo Clean com detalhe e seleção creme/pêssego
         ═══════════════════════════════════════════════════ */
-
-        section[data-testid="stSidebar"] {
+        section[data-testid="stSidebar"] {{
             background: linear-gradient(
                 165deg,
-                #F8F8FA  0%,
-                #F0F0F5 14%,
-                #E8E8ED 28%,
-                #DEDEE6 44%,
-                #D1D1D6 60%,
-                #C7C7CC 76%,
-                #B8B8C0 90%,
-                #AEAEB2 100%
+                #F8FAFC 0%,
+                #F1F5F9 50%,
+                #E2E8F0 100%
             ) !important;
-            border-right: 3px solid #012869 !important;
-            box-shadow:
-                inset 1px 0 0 rgba(255, 255, 255, 0.85),
-                inset -1px 0 0 rgba(1, 40, 105, 0.08),
-                4px 0 24px rgba(1, 40, 105, 0.12) !important;
-            position: relative;
-            overflow: hidden;
-        }
+            border-right: 1px solid var(--cor-borda) !important;
+            box-shadow: 4px 0 24px rgba(1, 40, 105, 0.06) !important;
+        }}
 
-        /* Brilho metálico sutil */
-        section[data-testid="stSidebar"]::before {
-            content: '' !important;
-            display: block !important;
-            position: absolute;
-            top: 0;
-            left: 18%;
-            width: 38%;
-            height: 100%;
-            background: linear-gradient(
-                90deg,
-                transparent 0%,
-                rgba(255, 255, 255, 0.20) 35%,
-                rgba(255, 255, 255, 0.45) 50%,
-                rgba(255, 255, 255, 0.20) 65%,
-                transparent 100%
-            );
-            transform: skewX(-14deg);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* Faixa azul → laranja no topo */
-        section[data-testid="stSidebar"]::after {
+        /* Linha laranja metálica de topo do Sidebar */
+        section[data-testid="stSidebar"]::after {{
             content: '' !important;
             display: block !important;
             position: absolute;
@@ -390,274 +354,66 @@ def _injetar_css_global() -> None:
             height: 4px;
             background: linear-gradient(
                 90deg,
-                #012869 0%,
-                #012869 45%,
-                #F37C04 75%,
-                #F37C04 100%
+                var(--cor-primaria) 0%,
+                var(--cor-secundaria) 100%
             );
             z-index: 99;
-        }
+        }}
 
-        section[data-testid="stSidebar"] > div:first-child {
-            position: relative;
-            z-index: 1;
-        }
-
-        /* ── Textos ── */
-        section[data-testid="stSidebar"] p,
-        section[data-testid="stSidebar"] label,
-        section[data-testid="stSidebar"] .stMarkdown,
-        section[data-testid="stSidebar"] [data-testid="stWidgetLabel"],
-        section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
-        section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] span {
-            color: #1C1C1E !important;
-            font-weight: 600;
-            text-shadow: none !important;
-        }
-
-        section[data-testid="stSidebar"] h1,
-        section[data-testid="stSidebar"] h2,
-        section[data-testid="stSidebar"] h3,
-        section[data-testid="stSidebar"] h4 {
-            color: #012869 !important;
+        /* Header de Menus no Sidebar */
+        .sidebar-menu-header {{
             font-family: var(--font-titulo) !important;
+            font-size: 11px !important;
             font-weight: 800 !important;
-            letter-spacing: -0.3px;
-            border-bottom: 2px solid rgba(243, 124, 4, 0.45) !important;
-            padding-bottom: 8px;
-            margin-bottom: 12px;
-        }
+            color: var(--cor-primaria) !important;
+            letter-spacing: 0.12em !important;
+            text-transform: uppercase;
+            margin: 20px 10px 8px 10px;
+            opacity: 0.8;
+        }}
 
-        section[data-testid="stSidebar"] hr {
-            border: none !important;
-            height: 1px !important;
-            background: linear-gradient(
-                90deg,
-                transparent 0%,
-                rgba(1, 40, 105, 0.18) 20%,
-                rgba(243, 124, 4, 0.55) 50%,
-                rgba(1, 40, 105, 0.18) 80%,
-                transparent 100%
-            ) !important;
-            margin: 12px 0 !important;
-        }
-
-        section[data-testid="stSidebar"] code {
-            background: rgba(1, 40, 105, 0.08) !important;
-            color: #012869 !important;
-            border: 1px solid rgba(243, 124, 4, 0.40) !important;
-            border-radius: 6px !important;
-            padding: 2px 8px !important;
+        /* Seções de Filtros no Sidebar */
+        .sidebar-section-label {{
+            font-family: var(--font-texto) !important;
+            font-size: 12px !important;
             font-weight: 700 !important;
-        }
+            color: var(--cor-texto-2) !important;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }}
 
-        /* ── Navegação de páginas ── */
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
-            background: transparent !important;
-            padding: 6px 0 !important;
-        }
-
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul {
-            padding: 0 !important;
-        }
-
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li {
-            margin: 4px 10px !important;
-        }
-
-        /* Oculta "streamlit app" (home) */
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child {
-            display: none !important;
-        }
-
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a,
-        section[data-testid="stSidebar"] li a {
-            background: linear-gradient(
-                135deg,
-                rgba(255, 255, 255, 0.80) 0%,
-                rgba(240, 240, 245, 0.95) 100%
-            ) !important;
-            border: 1px solid rgba(1, 40, 105, 0.12) !important;
-            border-left: 3px solid transparent !important;
-            border-radius: 12px !important;
-            padding: 11px 14px !important;
-            transition: all 0.18s ease !important;
-            box-shadow:
-                0 2px 8px rgba(0, 0, 0, 0.05),
-                inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
-        }
-
-        /* Texto inativo */
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a span,
-        section[data-testid="stSidebar"] li a span,
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a p,
-        section[data-testid="stSidebar"] li a p {
-            color: #3A3A3C !important;
-            font-weight: 700 !important;
-            text-shadow: none !important;
-        }
-
-        /* Hover */
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover,
-        section[data-testid="stSidebar"] li a:hover {
-            background: linear-gradient(
-                135deg,
-                rgba(1, 40, 105, 0.06) 0%,
-                rgba(243, 124, 4, 0.10) 100%
-            ) !important;
-            border-color: rgba(243, 124, 4, 0.40) !important;
-            border-left-color: #F37C04 !important;
-            transform: translateX(2px);
-        }
-
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover span,
-        section[data-testid="stSidebar"] li a:hover span {
-            color: #012869 !important;
-        }
-
-        /* ── Item ATIVO: creme/pêssego + borda laranja (pill) ── */
+        /* ── Item Ativo de Navegação: Estilo Pill Creme/Pêssego + Borda Laranja ── */
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"],
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"],
         section[data-testid="stSidebar"] li a[aria-current="page"],
-        section[data-testid="stSidebar"] li a[aria-selected="true"] {
+        section[data-testid="stSidebar"] li a[aria-selected="true"] {{
             background: linear-gradient(
                 90deg,
-                #FFF8F0 0%,
-                #FFE9D0 55%,
-                #FADBB9 100%
+                #FFFDF9 0%,
+                #FFF3E5 60%,
+                #FFE8CC 100%
             ) !important;
-            border: 1px solid rgba(243, 124, 4, 0.45) !important;
+            border: 1.5px solid #F37C04 !important;
             border-left: 4px solid #F37C04 !important;
             border-radius: 12px !important;
-            box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.90),
-                0 4px 12px rgba(243, 124, 4, 0.18),
-                0 0 0 1px rgba(1, 40, 105, 0.06) !important;
-        }
+            box-shadow: 0 4px 12px rgba(243, 124, 4, 0.1) !important;
+        }}
 
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] span,
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] span,
-        section[data-testid="stSidebar"] li a[aria-current="page"] span,
-        section[data-testid="stSidebar"] li a[aria-selected="true"] span,
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] p,
-        section[data-testid="stSidebar"] li a[aria-current="page"] p {
-            color: #012869 !important;
-            font-weight: 800 !important;
-            text-shadow: none !important;
-        }
-
-        /* Ícones */
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a [data-testid*="Icon"],
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a [class*="material"] {
-            color: #012869 !important;
-        }
-
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] [data-testid*="Icon"],
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] [class*="material"],
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] svg,
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] svg {
-            color: #F37C04 !important;
-            fill: #F37C04 !important;
-        }
-
-        /* ── Botões ── */
-        section[data-testid="stSidebar"] .stButton button,
-        section[data-testid="stSidebar"] .stDownloadButton button,
-        section[data-testid="stSidebar"] .stFormSubmitButton button {
-            background: linear-gradient(180deg, #012869 0%, #023a8c 100%) !important;
-            color: #FFFFFF !important;
-            border: 1px solid rgba(243, 124, 4, 0.55) !important;
-            border-radius: 10px !important;
-            box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.15),
-                0 3px 10px rgba(1, 40, 105, 0.25) !important;
-            font-weight: 700 !important;
-        }
-
-        section[data-testid="stSidebar"] .stButton button:hover,
-        section[data-testid="stSidebar"] .stDownloadButton button:hover,
-        section[data-testid="stSidebar"] .stFormSubmitButton button:hover {
-            background: linear-gradient(180deg, #F37C04 0%, #E85D04 100%) !important;
-            color: #FFFFFF !important;
-            border-color: rgba(1, 40, 105, 0.25) !important;
-            box-shadow: 0 4px 14px rgba(243, 124, 4, 0.35) !important;
-        }
-
-        /* Botão secundário (Sair) */
-        section[data-testid="stSidebar"] .stButton button[kind="secondary"] {
-            background: linear-gradient(180deg, #FFFFFF 0%, #E8E8ED 100%) !important;
-            color: #1C1C1E !important;
-            border: 1px solid rgba(1, 40, 105, 0.18) !important;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.95) !important;
-        }
-
-        section[data-testid="stSidebar"] .stButton button[kind="secondary"]:hover {
-            background: linear-gradient(180deg, #C0392B 0%, #E74C3C 100%) !important;
-            color: #FFFFFF !important;
-            border-color: transparent !important;
-        }
-
-        /* ── Inputs / Select ── */
-        section[data-testid="stSidebar"] [data-baseweb="select"] > div,
-        section[data-testid="stSidebar"] [data-baseweb="input"],
-        section[data-testid="stSidebar"] input,
-        section[data-testid="stSidebar"] textarea {
-            background: #FFFFFF !important;
-            color: #1C1C1E !important;
-            border: 1px solid rgba(1, 40, 105, 0.18) !important;
-            border-radius: 8px !important;
-            box-shadow:
-                inset 0 1px 2px rgba(0, 0, 0, 0.04),
-                0 1px 2px rgba(255, 255, 255, 0.8) !important;
-        }
-
-        section[data-testid="stSidebar"] [data-baseweb="select"] * {
-            color: #1C1C1E !important;
-            text-shadow: none !important;
-        }
-
-        section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within,
-        section[data-testid="stSidebar"] [data-baseweb="input"]:focus-within {
-            border-color: #F37C04 !important;
-            box-shadow:
-                0 0 0 3px rgba(243, 124, 4, 0.18),
-                0 0 0 5px rgba(1, 40, 105, 0.08) !important;
-        }
-
-        /* ───────────────────────────────────────────────────
-        SELECTBOX E INPUTS
-        ─────────────────────────────────────────────────── */
-
-        section[data-testid="stSidebar"] [data-baseweb="select"] > div,
-        section[data-testid="stSidebar"] [data-baseweb="input"],
-        section[data-testid="stSidebar"] input,
-        section[data-testid="stSidebar"] textarea {
-            background: #FFF9F3 !important;
-            color: #3C1A08 !important;
-            border: 1px solid rgba(125, 47, 0, 0.36) !important;
-            border-radius: 8px !important;
-            box-shadow:
-                inset 0 1px 2px rgba(92, 32, 0, 0.10),
-                0 1px 2px rgba(255, 235, 210, 0.20) !important;
-        }
-
-        section[data-testid="stSidebar"] [data-baseweb="select"] * {
-            color: #3C1A08 !important;
-            text-shadow: none !important;
-        }
-
-        section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within,
-        section[data-testid="stSidebar"] [data-baseweb="input"]:focus-within {
-            border-color: #FFF0DD !important;
-            box-shadow:
-                0 0 0 3px rgba(255, 237, 214, 0.35),
-                0 0 0 5px rgba(139, 53, 0, 0.22) !important;
-        }
-
-        """ + f"""
+        /* Reset de efeitos de hover e ajustes para links inativos */
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a,
+        section[data-testid="stSidebar"] li a {{
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }}
+        
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover,
+        section[data-testid="stSidebar"] li a:hover {{
+            background-color: rgba(243, 124, 4, 0.05) !important;
+            color: var(--cor-primaria) !important;
+        }}
 
         /* ═════════════════════════════════════════════════
-        🎨 HERO 1 — Estilo Imagem TOTALE (azul → laranja)
+        🎨 HERO 1 — Estilo Imagem TOTALE (Azul → Laranja)
         ═════════════════════════════════════════════════ */
         .hero-totale-1 {{
             background: linear-gradient(90deg,
@@ -668,14 +424,14 @@ def _injetar_css_global() -> None:
                 #d3751f 100%
             );
             border-radius: var(--radius-lg);
-            padding: 24px 32px;
+            padding: 28px 32px;
             position: relative;
             overflow: hidden;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-bottom: 28px;
+            box-shadow: var(--shadow-md);
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 20px;
             min-height: 100px;
         }}
         .hero-totale-1::after {{
@@ -694,15 +450,14 @@ def _injetar_css_global() -> None:
         }}
         .hero-t1-icon-box {{
             background: white;
-            padding: 6px 8px;
-            border-radius: 6px;
+            padding: 10px 12px;
+            border-radius: var(--radius-md);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.35);
-            font-size: 28px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            font-size: 32px;
             line-height: 1;
-            position: relative;
             z-index: 2;
         }}
         .hero-t1-content {{
@@ -712,31 +467,30 @@ def _injetar_css_global() -> None:
         }}
         .hero-t1-title {{
             font-family: var(--font-titulo) !important;
-            font-size: 32px;
+            font-size: 30px;
             font-weight: 800;
             margin: 0;
-            text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.40);
-            line-height: 1.1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            line-height: 1.15;
             color: #FFFFFF;
         }}
         .hero-t1-sub {{
             font-family: var(--font-texto) !important;
             font-size: 14px;
             margin: 6px 0 0 0;
-            opacity: 0.95;
-            font-weight: 500;
-            color: #F8FAFC;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.30);
+            opacity: 0.92;
+            font-weight: 400;
+            color: #F1F5F9;
         }}
 
         /* ═════════════════════════════════════════════════
-        🎨 HERO 2 — Azul Totale + faixa laranja
+        🎨 HERO 2 — Azul Totale + Faixa Laranja
         ═════════════════════════════════════════════════ */
         .hero-totale-2 {{
             background: var(--cor-primaria);
             border-radius: var(--radius-lg);
-            padding: 28px 32px;
-            margin-bottom: 24px;
+            padding: 30px 36px;
+            margin-bottom: 28px;
             position: relative;
             box-shadow: var(--shadow-md);
             overflow: hidden;
@@ -749,61 +503,51 @@ def _injetar_css_global() -> None:
             content: '';
             position: absolute;
             bottom: 0; left: 0; right: 0;
-            height: 4px;
+            height: 5px;
             background: var(--cor-secundaria);
-        }}
-        .hero-totale-2::before {{
-            content: '';
-            position: absolute;
-            top: -20px; right: -20px;
-            width: 150px; height: 150px;
-            border-radius: 50%;
-            background: radial-gradient(
-                circle,
-                rgba(243, 124, 4, 0.18) 0%,
-                transparent 70%
-            );
         }}
         .hero-t2-title {{
             font-family: var(--font-titulo) !important;
             color: #FFFFFF;
             font-size: 28px;
             font-weight: 800;
-            margin: 0 0 8px 0;
-            letter-spacing: -0.5px;
+            margin: 0 0 6px 0;
+            letter-spacing: -0.02em;
             position: relative;
             z-index: 2;
         }}
         .hero-t2-sub {{
             font-family: var(--font-texto) !important;
-            color: #CBD5E1;
+            color: #E2E8F0;
             font-size: 15px;
             margin: 0;
             position: relative;
             z-index: 2;
+            font-weight: 400;
         }}
 
-        /* ═════════ KPI CARDS ═════════ */
+        /* ═════════ KPI CARDS (MANROPE) ═════════ */
         .kpi-card {{
-            background: linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%);
+            background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
             border-radius: var(--radius-md);
             padding: 20px 24px;
-            box-shadow: var(--shadow-md);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--cor-borda);
             border-left: 4px solid var(--cor-primaria);
-            border-top: 1px solid #F3F4F6;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }}
         .kpi-card:hover {{
             transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
+            box-shadow: var(--shadow-md);
+            border-color: #CBD5E1;
         }}
         .kpi-label {{
             font-family: var(--font-texto) !important;
             font-size: 11px;
-            font-weight: 700;
+            font-weight: 600;
             color: var(--cor-texto-3);
             text-transform: uppercase;
-            letter-spacing: 1.2px;
+            letter-spacing: 0.08em;
             margin-bottom: 6px;
         }}
         .kpi-value {{
@@ -819,47 +563,41 @@ def _injetar_css_global() -> None:
             font-size: 12px;
             color: var(--cor-texto-3);
             margin-top: 6px;
-            font-weight: 500;
+            font-weight: 400;
         }}
 
-        /* ═════════ SEÇÕES ═════════ */
+        /* ═════════ SEÇÕES E DIVISORES ═════════ */
         .section-header {{
             display: flex;
             align-items: center;
             gap: 12px;
             margin: 32px 0 16px 0;
             padding-bottom: 12px;
-            border-bottom: 2px solid var(--cor-borda);
+            border-bottom: 1px solid var(--cor-borda);
         }}
         .section-title {{
             font-family: var(--font-titulo) !important;
             font-size: 20px;
-            font-weight: 700;
+            font-weight: 800;
             color: var(--cor-primaria);
             margin: 0;
         }}
         .section-badge {{
-            background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
+            background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
             color: var(--cor-texto-2);
-            padding: 4px 12px;
-            border-radius: 4px;
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
             font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border: 1px solid #D1D5DB;
+            letter-spacing: 0.05em;
+            border: 1px solid #CBD5E1;
         }}
 
-        /* ═════════ MATERIAL ICONS ═════════ */
+        /* ═════════ ICONES MATERIAL SYSTEM ═════════ */
         .material-icons, .material-icons-outlined, .material-icons-round,
-        .material-symbols-outlined, .material-symbols-rounded,
-        [data-testid="stIconMaterial"],
-        [data-testid*="Icon"], [data-testid*="icon"],
-        span[class*="material"], i[class*="material"] {{
-            font-family:
-                "Material Symbols Rounded",
-                "Material Symbols Outlined",
-                "Material Icons" !important;
+        .material-symbols-outlined, .material-symbols-rounded {{
+            font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important;
             font-weight: normal !important;
             font-style: normal !important;
             line-height: 1 !important;
@@ -867,17 +605,7 @@ def _injetar_css_global() -> None:
             text-transform: none !important;
             white-space: nowrap !important;
             direction: ltr !important;
-            font-feature-settings: "liga" !important;
             -webkit-font-smoothing: antialiased !important;
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24 !important;
-        }}
-        svg, svg * {{ font-family: inherit !important; }}
-
-        section[data-testid="stSidebar"] [data-testid*="Icon"],
-        section[data-testid="stSidebar"] [class*="material"] {{
-            font-size: 18px !important;
-            width: 18px !important;
-            height: 18px !important;
         }}
         </style>
         """
@@ -886,17 +614,17 @@ def _injetar_css_global() -> None:
 
 
 # ====================================================
-# API PÚBLICA
+# API PÚBLICA DE CONFIGURAÇÃO DE TELA
 # ====================================================
 def aplicar_estilo() -> None:
-    """Aplica fonte corporativa, tema Plotly e CSS global."""
+    """Aplica a tipografia corporativa Premium, tema Plotly e estilo CSS global."""
     _configurar_plotly_global()
     _injetar_fontes_no_head_pai()
     _injetar_css_global()
 
 
 # ====================================================
-# HELPERS
+# HELPERS DE RENDERIZAÇÃO
 # ====================================================
 def _resolver_cor_tema(tema: str) -> str:
     cor = _TEMA_CORES.get(tema)
@@ -914,14 +642,14 @@ def _markdown_inline_para_html(texto: str) -> str:
 
 
 # ====================================================
-# HEROS
+# HEROS DE ENTRADA E CONTEXTO
 # ====================================================
 def render_hero_totale_1(
     titulo: str = "Portal TOTALE",
     subtitulo: str = "Painéis de Produção, Indicadores e Gestão Estratégica",
     icone: str = "📊",
 ) -> None:
-    """Hero estilo imagem: gradiente azul → laranja com feixe de luz e ícone."""
+    """Hero Premium com gradiente luminoso azul-laranja e ícone."""
     if not titulo:
         raise ValueError("render_hero_totale_1: 'titulo' não pode ser vazio.")
     st.markdown(
@@ -939,7 +667,7 @@ def render_hero_totale_1(
 
 
 def render_hero_totale_2(titulo: str, subtitulo: str = "") -> None:
-    """Hero azul Totale com faixa inferior laranja."""
+    """Hero Azul Totale corporativo estruturado com friso laranja na base."""
     if not titulo:
         raise ValueError("render_hero_totale_2: 'titulo' não pode ser vazio.")
     sub_html = f'<p class="hero-t2-sub">{subtitulo}</p>' if subtitulo else ""
@@ -955,22 +683,16 @@ def render_hero_totale_2(titulo: str, subtitulo: str = "") -> None:
 
 
 def render_hero(titulo: str, subtitulo: str = "", badge: str = "") -> None:
-    """Alias legado → redireciona para hero_totale_1."""
+    """Fallback legado para render_hero_totale_1."""
     extra = f" · {badge}" if badge else ""
     render_hero_totale_1(titulo=titulo, subtitulo=f"{subtitulo}{extra}".strip(" ·"))
 
 
 # ====================================================
-# SIDEBAR
+# COMPONENTES DO MENU SIDEBAR
 # ====================================================
 def render_sidebar_nav_header(titulo: str) -> None:
-    """
-    Título divisor do menu (ex: MENU PRINCIPAL, CENTRAL DE PERFORMANCE).
-
-    Exemplo:
-        with st.sidebar:
-            render_sidebar_nav_header("MENU PRINCIPAL")
-    """
+    """Sub-divisor de navegação para menus estruturados."""
     if not titulo:
         return
     st.sidebar.markdown(
@@ -984,16 +706,20 @@ def render_sidebar_brand(
     subtitulo: str = "",
     icone: str = "🏢",
 ) -> None:
-    """Cabeçalho de marca no topo do sidebar."""
+    """Identidade corporativa principal do cliente no topo do Sidebar."""
     if not titulo:
         raise ValueError("render_sidebar_brand: 'titulo' não pode ser vazio.")
     sub_html = (
-        f'<p class="sidebar-brand-subtitle">{subtitulo}</p>' if subtitulo else ""
+        f'<p style="font-family:{FONTE_TEXTO};font-size:11px;color:var(--cor-texto-3);'
+        f'margin:4px 0 0 0;font-weight:500;">{subtitulo}</p>' if subtitulo else ""
     )
     st.sidebar.markdown(
         f"""
-        <div class="sidebar-brand">
-            <h1 class="sidebar-brand-title">{icone} {titulo}</h1>
+        <div style="padding: 10px 10px 18px 10px; border-bottom: 1px solid var(--cor-borda);">
+            <h2 style="font-family:{FONTE_TITULO};font-size:18px;color:var(--cor-primaria);'
+            f'margin:0;font-weight:900;display:flex;align-items:center;gap:8px;">
+                <span>{icone}</span> {titulo}
+            </h2>
             {sub_html}
         </div>
         """,
@@ -1002,7 +728,7 @@ def render_sidebar_brand(
 
 
 def render_sidebar_section(label: str) -> None:
-    """Label de seção para agrupar filtros no sidebar."""
+    """Label estático para organização de filtros de controle."""
     if not label:
         return
     st.sidebar.markdown(
@@ -1012,20 +738,22 @@ def render_sidebar_section(label: str) -> None:
 
 
 # ====================================================
-# COMPONENTES DE CONTEÚDO
+# COMPONENTES DE CONTEÚDO E MÉTRICAS
 # ====================================================
 def render_section(titulo: str, divider: str = "gray") -> None:
+    """Divisor padrão de seção de dashboard."""
     st.subheader(titulo, divider=divider)  # type: ignore[arg-type]
 
 
 def render_section_header(icon: str, title: str, badge: str = "") -> None:
+    """Título de seção corporativo com suporte para badges e ícones."""
     if not title:
         raise ValueError("render_section_header: 'title' vazio.")
     badge_html = f'<span class="section-badge">{badge}</span>' if badge else ""
     st.markdown(
         f"""
         <div class="section-header">
-            <span style="font-size:24px;line-height:1;">{icon}</span>
+            <span style="font-size:22px;line-height:1;">{icon}</span>
             <h2 class="section-title">{title}</h2>
             {badge_html}
         </div>
@@ -1041,6 +769,7 @@ def render_kpi(
     sub: str = "",
     tema: TemaKPI = "azul",
 ) -> None:
+    """Renderiza um card de KPI corporativo sofisticado baseado em Manrope e Inter."""
     cor = _resolver_cor_tema(tema)
     col.markdown(
         f"""
@@ -1061,20 +790,22 @@ def render_kpi_sm(
     sub: str = "",
     tema: TemaKPI = "azul",
 ) -> None:
+    """Versão reduzida do card de KPI (compacto para sidebars e tabelas auxiliares)."""
     cor = _resolver_cor_tema(tema)
     container.markdown(
         f"""
-        <div style="background:white;border-radius:6px;padding:12px 16px;
+        <div style="background:white;border-radius:var(--radius-sm);padding:12px 14px;
              border-left:3px solid {cor};margin-bottom:8px;
-             box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+             border: 1px solid var(--cor-borda); border-left-color:{cor};
+             box-shadow:var(--shadow-sm);">
             <div style="font-family:{FONTE_TEXTO};font-size:10px;
-                 color:{COR_TEXTO_3};text-transform:uppercase;
-                 letter-spacing:1px;font-weight:700;">{label}</div>
+                 color:var(--cor-texto-3);text-transform:uppercase;
+                 letter-spacing:0.05em;font-weight:700;">{label}</div>
             <div style="font-family:{FONTE_TITULO};font-size:20px;
                  color:{cor};font-weight:800;line-height:1.2;
                  margin-top:4px;font-variant-numeric:tabular-nums;">{valor}</div>
             <div style="font-family:{FONTE_TEXTO};font-size:11px;
-                 color:{COR_TEXTO_3};margin-top:2px;">{sub}</div>
+                 color:var(--cor-texto-3);margin-top:2px;font-weight:400;">{sub}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1082,6 +813,7 @@ def render_kpi_sm(
 
 
 def render_insight(msg: str, tipo: TipoInsight = "info") -> None:
+    """Caixa de chamados e insights executivos (Inter)."""
     if not msg:
         return
     config = _INSIGHT_CONFIG.get(tipo)
@@ -1094,9 +826,9 @@ def render_insight(msg: str, tipo: TipoInsight = "info") -> None:
         f"""
         <div style="background:{bg};color:{texto};
              border-left:4px solid {borda};
-             padding:12px 16px;border-radius:6px;margin:10px 0;
-             font-family:{FONTE_TEXTO};font-size:14px;line-height:1.6;">
-            <span style="margin-right:8px;">{icone}</span>{msg_html}
+             padding:12px 16px;border-radius:var(--radius-sm);margin:12px 0;
+             font-family:{FONTE_TEXTO};font-size:14px;line-height:1.6;font-weight:500;">
+            <span style="margin-right:8px;font-size:15px;">{icone}</span>{msg_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -1111,13 +843,18 @@ def render_dataframe(
     fmt: FmtDict | None = None,
     **kwargs: Any,
 ) -> None:
+    """Renderização de dataframes interativos com formatação e tipografia corporativa."""
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Esperado pd.DataFrame, recebido {type(df).__name__}.")
     if df.empty:
         st.info("Nenhum dado disponível para exibição.")
         return
     if titulo:
-        st.markdown(f"**{icone} {titulo}**")
+        st.markdown(
+            f'<div style="font-family:{FONTE_TITULO};font-size:15px;font-weight:700;'
+            f'margin-bottom:8px;color:var(--cor-texto);">{icone} {titulo}</div>',
+            unsafe_allow_html=True,
+        )
     if fmt:
         fmt_valido: FmtDict = {c: f for c, f in fmt.items() if c in df.columns}
         if fmt_valido:
@@ -1131,5 +868,5 @@ def render_dataframe(
                 )
                 return
             except Exception:
-                logger.exception("Falha ao formatar. Exibindo sem formatação.")
+                logger.exception("Falha ao formatar DataFrame. Exibindo sem formatação.")
     st.dataframe(df, height=height, use_container_width=True, hide_index=True, **kwargs)
