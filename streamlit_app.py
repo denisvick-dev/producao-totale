@@ -1,151 +1,130 @@
+# app.py
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
 
-# Set the title and favicon that appear in the Browser's tab bar.
+# Importações vindas do diretório 'utils'
+from utils._auth import AuthManager
+from utils._database import get_db
+
 st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
+    page_title="Sistema de Autenticação - Técnicos",
+    page_icon="🛠️",
+    layout="wide"
 )
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+auth = AuthManager()
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# Inicializa sessão
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+# ====================================================
+# TELA DE LOGIN (COM DATAFRAME VISÍVEL ANTES DE LOGAR)
+# ====================================================
+def render_login():
+    st.title("🛠️ Portal do Técnico")
+    
+    col1, col2 = st.columns([1, 2], gap="large")
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+    # Coluna 1: Formulário de Login
+    with col1:
+        st.subheader("🔑 Login de Acesso")
+        with st.form("login_form"):
+            identifier = st.text_input(
+                "Login ou User",
+                placeholder="Ex: Z613057 ou ADRIEL.ALEXANDER",
+                help="Você pode usar o código Z ou o formato NOME.SOBRENOME"
+            )
+            password = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+            
+            submit = st.form_submit_button("Entrar", use_container_width=True, type="primary")
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+            if submit:
+                if not identifier or not password:
+                    st.error("Preencha todos os campos!")
+                else:
+                    with st.spinner("Verificando..."):
+                        success, message = auth.login(identifier, password)
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+    # Coluna 2: DataFrame Visível ANTES de logar (Para Conferência)
+    with col2:
+        st.subheader("📋 Dados da Planilha (Conferência Pré-Login)")
+        
+        db = get_db()
+        df = db.get_dataframe()
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+        if not df.empty:
+            # Filtro para busca na tabela pré-login
+            search = st.text_input("🔍 Buscar Técnico / Login / User:", placeholder="Digite para filtrar...")
+            
+            df_display = df.copy()
+            
+            if search:
+                df_display = df_display[
+                    df_display["Técnico"].astype(str).str.contains(search, case=False, na=False) |
+                    df_display["Login"].astype(str).str.contains(search, case=False, na=False) |
+                    df_display["User"].astype(str).str.contains(search, case=False, na=False)
+                ]
 
-    return gdp_df
+            # Mascara a coluna Pass por segurança na visualização
+            if "Pass" in df_display.columns:
+                df_display["Pass"] = "••••••••"
 
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True,
+                height=400
+            )
         else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
+            st.warning("Não foi possível carregar os dados da planilha.")
 
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+# ====================================================
+# TELA PRINCIPAL (APÓS LOGIN)
+# ====================================================
+def render_dashboard():
+    with st.sidebar:
+        st.title("👤 Usuário Logado")
+        st.markdown(f"**Técnico:**\n{st.session_state.get('tecnico')}")
+        st.markdown(f"**Login:** `{st.session_state.get('login_code')}`")
+        st.markdown(f"**User:** `{st.session_state.get('user_code')}`")
+        st.divider()
+
+        if st.button("🚪 Sair", use_container_width=True, type="secondary"):
+            auth.logout()
+            st.rerun()
+
+    st.title("🚀 Painel Interno")
+    st.success(f"Conectado com sucesso como **{st.session_state.get('tecnico')}**!")
+    
+    st.subheader("📊 Métricas Rápidas")
+    db = get_db()
+    df = db.get_dataframe()
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total de Técnicos", len(df))
+    with col2:
+        st.metric("Seu Usuário Ativo", st.session_state.get("user_code"))
+
+    st.divider()
+    st.subheader("📋 Tabela Completa")
+    
+    df_show = df.copy()
+    if "Pass" in df_show.columns:
+        df_show["Pass"] = "••••••••"
+        
+    st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+# ====================================================
+# ROTEAMENTO
+# ====================================================
+if st.session_state["authenticated"]:
+    render_dashboard()
+else:
+    render_login()
