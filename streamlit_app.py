@@ -152,6 +152,17 @@ def injetar_css_login():
             color: #012869 !important;
             font-weight: 800 !important;
         }
+        
+        /* Troca o texto 'producao' visualmente no sidebar */
+        [data-testid="stSidebarNav"] a[href*="producao"] span {
+            font-size: 0 !important;
+        }
+        [data-testid="stSidebarNav"] a[href*="producao"] span::before {
+            content: "📊 Minha Produção" !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            color: #012869 !important;
+        }
 
         /* Card de marca no sidebar (login) */
         .sidebar-login-brand {
