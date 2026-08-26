@@ -1,4 +1,4 @@
-# pages/producao.py (ou pages/1_📊_Minha_Produção.py)
+# pages/producao.py
 from datetime import date as _date, timedelta
 import datetime as _dt
 from typing import Any, List, Optional
@@ -8,7 +8,7 @@ import streamlit as st
 
 # ⚠️ CONFIGURAÇÃO OBRIGATÓRIA NO TOPO
 st.set_page_config(
-    page_title="Minha Produção | Totale",
+    page_title="Produção | Totale",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -33,7 +33,7 @@ render_sidebar_corp(on_logout=auth.logout, logout_page="streamlit_app.py")
 try:
     from components.componentes import (
         aplicar_estilo,
-        render_hero,
+        render_hero_totale_1,
         render_insight,
         render_section_header,
     )
@@ -294,10 +294,12 @@ tecnico = str(st.session_state.get("tecnico", ""))
 login_code = str(st.session_state.get("login_code", ""))
 user_code = str(st.session_state.get("user_code", ""))
 
-render_hero(
-    titulo="🔍 Raio-X: Desempenho Operacional",
-    subtitulo=f"Auditoria de Execução Física exclusiva para {tecnico}",
+render_hero_totale_1(
+    titulo="Central de Produção Técnica",
+    subtitulo="Auditoria de O.S. e Pontos para o técnico(a) ADRIEL ALEXANDER DE LIMA",
+    icone="bar_chart",
     badge="Painel do Técnico",
+    usar_material=True,
 )
 
 # ── Carregamento ──

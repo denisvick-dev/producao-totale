@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 from typing import Any, Dict, List, Optional
 
+import bcrypt
 import gspread
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
@@ -63,6 +64,45 @@ class GoogleSheetsDB:
             st.error(f"Erro na base de usuários: {e}")
             return pd.DataFrame(columns=HEADERS_USERS)
 
+    def save_users_dataframe(self, df: pd.DataFrame) -> bool:
+        """Persiste o DataFrame de usuários de volta na planilha Google Sheets."""
+        try:
+            if df.empty:
+                return False
+
+            ws = self._get_worksheet(USERS_SPREADSHEET_ID)
+            upload_df = df.copy().fillna("")
+            rows: list[list[Any]] = [list(upload_df.columns.astype(str))]
+            for _, row in upload_df.iterrows():
+                rows.append(["" if pd.isna(value) else value for value in row.tolist()])
+
+            ws.clear()
+            ws.update(range_name="A1", values=rows, raw=False)
+            return True
+        except Exception as e:
+            st.error(f"Erro ao salvar base de usuários: {e}")
+            return False
+
+    def update_user_password(self, login_real: str, novo_hash_bcrypt: str) -> bool:
+        """
+        Atualiza o campo 'Pass' do usuário na tabela do banco de dados.
+        Retorna True se salvou corretamente.
+        """
+        try:
+            # EXEMPLO SE VOCÊ USA GOOGLE SHEETS:
+            df = self.get_users_dataframe()
+            df.loc[df["Login"] == login_real, "Pass"] = novo_hash_bcrypt
+            return self.save_users_dataframe(df)
+            
+            # EXEMPLO SE VOCÊ USA SUPABASE CLIENT:
+            # response = self.supabase.table("sua_tabela").update({"Pass": novo_hash_bcrypt}).eq("Login", login_real).execute()
+            # return len(response.data) > 0
+
+        except Exception as e:
+            print(f"Erro no banco: {e}")
+            return False
+        
+        
     def find_user_by_login_or_user(self, identifier: str) -> Optional[Dict[str, Any]]:
         df = self.get_users_dataframe()
         if df.empty: return None

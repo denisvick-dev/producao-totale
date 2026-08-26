@@ -209,7 +209,7 @@ def injetar_css_sidebar_corp() -> None:
 
         [data-testid="stSidebarNav"] a[href*="producao"] span::before,
         [data-testid="stSidebarNav"] a[aria-current="page"] span::before {{
-            content: "📊 Minha Produção" !important;
+            content: "📊 Produção" !important;
             font-size: 14px !important;
             font-weight: 800 !important;
             color: #012869 !important; /* Azul Totale */
