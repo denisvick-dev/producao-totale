@@ -15,6 +15,7 @@ st.set_page_config(
 )
 
 PAGINA_PRODUCAO = "pages/producao.py"
+PAGINA_CONSULTIVO = "pages/consultivo.py"
 
 # ====================================================
 # ESTADO DA SESSÃO (ROTEAMENTO)
@@ -27,6 +28,7 @@ if "auth_view" not in st.session_state:
 
 if st.session_state["authenticated"]:
     st.switch_page(PAGINA_PRODUCAO)
+    st.switch_page(PAGINA_CONSULTIVO)
 
 auth = AuthManager()
 
@@ -67,6 +69,8 @@ def injetar_css_login():
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] span, section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] span { color: #012869 !important; font-weight: 800 !important; }
         [data-testid="stSidebarNav"] a[href*="producao"] span { font-size: 0 !important; }
         [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produção" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
+        [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
+        [data-testid="stSidebarNav"] a[href*="consultivo"] span::before { content: "🗣️ Consultivo" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
         
         .sidebar-login-brand { background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(232,232,237,0.95)); border: 1px solid rgba(1,40,105,0.12); border-left: 4px solid #F37C04; border-radius: 14px; padding: 18px 16px; margin: 8px 0 12px 0; box-shadow: 0 8px 20px rgba(1,40,105,0.08), inset 0 1px 0 rgba(255,255,255,0.95); }
         .sidebar-login-brand .brand { font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #F37C04; margin-bottom: 8px; }
@@ -76,7 +80,7 @@ def injetar_css_login():
         .sidebar-login-footer b { color: #F37C04; }
         
         .login-header { text-align: center; padding: 1.5rem 0 2.2rem 0; }
-        .login-header h1 { color: #012869; font-size: 3.5rem; font-weight: 900; letter-spacing: -1px; margin-bottom: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.06); }
+        .login-header h1 { color: #012869; font-size: 2.5rem; font-weight: 900; letter-spacing: -1px; margin-bottom: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.06); }
         .login-header h1 span { color: #F37C04; }
         .login-header p { color: #64748B; font-size: 1.1rem; font-weight: 600; margin-top: -5px; letter-spacing: 1px; text-transform: uppercase; }
         
@@ -108,6 +112,7 @@ def injetar_css_login():
         unsafe_allow_html=True,
     )
 
+
 def render_sidebar_login() -> None:
     with st.sidebar:
         st.markdown(
@@ -117,13 +122,19 @@ def render_sidebar_login() -> None:
                 <p class="title">Acesso do Técnico</p>
                 <p class="sub">Faça login para ver sua produção e indicadores.</p>
             </div>
-            """, unsafe_allow_html=True
+            """,
+            unsafe_allow_html=True,
         )
         st.divider()
         st.markdown("**Como entrar**")
-        st.caption("Use seu **Login** (ex: Z659935) ou **User** (ex: DENIS.ADMIN) e a senha cadastrada.")
+        st.caption(
+            "Use seu **Login** (ex: Z659935) ou **User** (ex: DENIS.ADMIN) e a senha cadastrada."
+        )
         st.divider()
-        st.markdown('<div class="sidebar-login-footer">POWERED BY <b>TOTALE</b></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="sidebar-login-footer">POWERED BY <b>TOTALE</b></div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ====================================================
@@ -147,15 +158,21 @@ def render_tabela_consulta():
         search = st.text_input(
             "🔍 Localize seu cadastro:",
             placeholder="Digite seu nome, login Z ou user...",
-            key="search_table"
+            key="search_table",
         )
         df_display = df_users.copy()
 
         if search:
             df_display = df_display[
-                df_display["Técnico"].astype(str).str.contains(search, case=False, na=False)
-                | df_display["Login"].astype(str).str.contains(search, case=False, na=False)
-                | df_display["User"].astype(str).str.contains(search, case=False, na=False)
+                df_display["Técnico"]
+                .astype(str)
+                .str.contains(search, case=False, na=False)
+                | df_display["Login"]
+                .astype(str)
+                .str.contains(search, case=False, na=False)
+                | df_display["User"]
+                .astype(str)
+                .str.contains(search, case=False, na=False)
             ]
 
         if "Pass" in df_display.columns:
@@ -170,12 +187,19 @@ def render_tabela_consulta():
 # TELA 1: LOGIN
 # ====================================================
 def tela_login() -> None:
-    col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns([0.3, 2.2, 3.4, 0.3], gap="large")
+    col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns(
+        [0.3, 2.2, 3.4, 0.3], gap="large"
+    )
 
     with col_form:
         with st.form("login_form"):
-            st.markdown("<h3 style='color:#012869;margin-bottom:1.2rem;font-size:20px;font-weight:800;'>🔑 Acesso Restrito</h3>", unsafe_allow_html=True)
-            identifier = st.text_input("Login ou User", placeholder="Ex: Z659935 ou DENIS.ADMIN")
+            st.markdown(
+                "<h3 style='color:#012869;margin-bottom:1.2rem;font-size:20px;font-weight:800;'>🔑 Acesso Restrito</h3>",
+                unsafe_allow_html=True,
+            )
+            identifier = st.text_input(
+                "Login ou User", placeholder="Ex: Z659935 ou DENIS.ADMIN"
+            )
             password = st.text_input("Senha", type="password", placeholder="••••••••")
             submit = st.form_submit_button("AUTENTICAR", use_container_width=True)
 
@@ -189,7 +213,7 @@ def tela_login() -> None:
                         st.switch_page(PAGINA_PRODUCAO)
                     else:
                         st.error(f"❌ {message}")
-        
+
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Esqueceu ou deseja alterar a senha?", use_container_width=True):
             st.session_state["auth_view"] = "trocar_senha"
@@ -203,17 +227,33 @@ def tela_login() -> None:
 # TELA 2: TROCAR SENHA
 # ====================================================
 def tela_trocar_senha() -> None:
-    col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns([0.3, 2.2, 3.4, 0.3], gap="large")
+    col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns(
+        [0.3, 2.2, 3.4, 0.3], gap="large"
+    )
 
     with col_form:
         with st.form("reset_form"):
-            st.markdown("<h3 style='color:#012869;margin-bottom:0.5rem;font-size:20px;font-weight:800;'>🔄 Alterar Senha</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#64748B;font-size:13px;margin-bottom:1.2rem;'>Defina uma nova senha para o seu acesso.</p>", unsafe_allow_html=True)
+            st.markdown(
+                "<h3 style='color:#012869;margin-bottom:0.5rem;font-size:20px;font-weight:800;'>🔄 Alterar Senha</h3>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<p style='color:#64748B;font-size:13px;margin-bottom:1.2rem;'>Defina uma nova senha para o seu acesso.</p>",
+                unsafe_allow_html=True,
+            )
 
-            identifier = st.text_input("Seu Login ou User", placeholder="Ex: Z659935 ou DENIS.ADMIN")
-            new_pass = st.text_input("Nova Senha", type="password", placeholder="Mínimo 6 caracteres")
-            confirm_pass = st.text_input("Confirme a Senha", type="password", placeholder="Repita a nova senha")
-            submit = st.form_submit_button("SALVAR NOVA SENHA", use_container_width=True)
+            identifier = st.text_input(
+                "Seu Login ou User", placeholder="Ex: Z659935 ou DENIS.ADMIN"
+            )
+            new_pass = st.text_input(
+                "Nova Senha", type="password", placeholder="Mínimo 6 caracteres"
+            )
+            confirm_pass = st.text_input(
+                "Confirme a Senha", type="password", placeholder="Repita a nova senha"
+            )
+            submit = st.form_submit_button(
+                "SALVAR NOVA SENHA", use_container_width=True
+            )
 
             if submit:
                 if not identifier or not new_pass or not confirm_pass:
@@ -225,7 +265,7 @@ def tela_trocar_senha() -> None:
                 else:
                     with st.spinner("Atualizando senha..."):
                         success, message = auth.update_password(identifier, new_pass)
-                    
+
                     if success:
                         st.success("✅ Senha alterada! Faça o login.")
                         st.session_state["auth_view"] = "login"
@@ -253,7 +293,8 @@ st.markdown(
         <h1>⚡ TOTALE<span>.</span></h1>
         <p>Portal Operacional do Técnico</p>
     </div>
-    """, unsafe_allow_html=True
+    """,
+    unsafe_allow_html=True,
 )
 
 if st.session_state["auth_view"] == "login":

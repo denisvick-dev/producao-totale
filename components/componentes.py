@@ -880,3 +880,201 @@ def render_icon(
         f'font-variation-settings:\'FILL\' {fill_val}, \'wght\' 400, \'GRAD\' 0, \'opsz\' {min(size, 48)};'
         f'vertical-align:middle;line-height:1;">{nome}</span>'
     )
+    
+# ====================================================
+# TEMA CLARO FORÇADO (CORRIGE SIDEBAR ESCURO)
+# ====================================================
+def aplicar_tema_claro() -> None:
+    """
+    Força Light Mode global no app inteiro.
+    Corrige o bug do sidebar escuro quando o tema nativo é dark.
+    Chamar SEMPRE logo após aplicar_estilo().
+    """
+    st.markdown(
+        """
+        <style>
+        /* ── FORÇA LIGHT MODE NO APP INTEIRO ── */
+        html, body, .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        [data-testid="stAppViewBlockContainer"] {
+            background: #F8FAFC !important;
+            color: #1F2937 !important;
+        }
+
+        /* ── SIDEBAR CLARO ── */
+        section[data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #FFFFFF 0%, #F4F5F7 100%) !important;
+            border-right: 1px solid #E2E8F0 !important;
+        }
+        section[data-testid="stSidebar"],
+        section[data-testid="stSidebar"] p,
+        section[data-testid="stSidebar"] label,
+        section[data-testid="stSidebar"] span,
+        section[data-testid="stSidebar"] div {
+            color: #1E293B !important;
+        }
+
+        /* ── MENU DE NAVEGAÇÃO ── */
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child {
+            display: none !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
+            background: #F8FAFC !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 10px !important;
+            margin: 4px 14px !important;
+            padding: 10px 14px !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+            text-decoration: none !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a span {
+            color: #1E293B !important;
+            font-weight: 700 !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover {
+            border-color: #F37C04 !important;
+            background: #FFF8F0 !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"],
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] {
+            background: linear-gradient(90deg, #FFFDF9 0%, #FFF3E5 60%, #FFE8CC 100%) !important;
+            border: 1.5px solid #F37C04 !important;
+            border-left: 4px solid #F37C04 !important;
+            box-shadow: 0 4px 12px rgba(243,124,4,0.10) !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] span,
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] span {
+            color: #012869 !important;
+        }
+
+        /* ── WIDGETS DO MAIN EM MODO CLARO ── */
+        [data-baseweb="select"] > div,
+        [data-baseweb="input"],
+        [data-baseweb="textarea"] {
+            background-color: #FFFFFF !important;
+            color: #1F2937 !important;
+            border-color: #CBD5E1 !important;
+        }
+        [data-baseweb="popover"] * {
+            color: #1F2937 !important;
+            background-color: #FFFFFF !important;
+        }
+
+        /* ── BOTÃO LOGOUT (Estilo Prata) ── */
+        .btn-logout-portal button {
+            background: linear-gradient(180deg, #E2E8F0 0%, #CBD5E1 100%) !important;
+            border: 1px solid #94A3B8 !important;
+            color: #1E293B !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.05) !important;
+        }
+        .btn-logout-portal button:hover {
+            background: #F1F5F9 !important;
+            border-color: #64748B !important;
+            color: #0F172A !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ====================================================
+# SIDEBAR DO PORTAL (CARD DE PERFIL)
+# ====================================================
+def render_sidebar_portal(
+    nome: str = "",
+    login: str = "",
+    user: str = "",
+    pagina_logout: str = "streamlit_app.py",
+) -> None:
+    """
+    Card de perfil do técnico logado no sidebar:
+    avatar com iniciais, badges Login/User, status Online,
+    botão Encerrar Sessão e rodapé corporativo.
+    """
+    partes = [p for p in (nome or "").split() if p]
+    if len(partes) >= 2:
+        iniciais = (partes[0][0] + partes[1][0]).upper()
+    elif partes:
+        iniciais = partes[0][:2].upper()
+    else:
+        iniciais = "US"
+
+    with st.sidebar:
+        st.markdown(
+            f"""
+<div style="background: linear-gradient(145deg, #FFFFFF 0%, #EDF0F4 100%);
+     border: 1px solid #CBD5E1; border-left: 4px solid #F97316;
+     border-radius: 12px; padding: 18px 16px; margin: 14px 14px 8px 14px;
+     box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+     color: #1E293B; font-family: 'Inter', sans-serif;">
+    <div style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+         color: #F97316; margin-bottom: 14px;">⚡ TOTALE · PORTAL</div>
+    <div style="width: 54px; height: 54px; border-radius: 50%;
+         background: linear-gradient(135deg, #012869 0%, #F97316 100%);
+         color: #FFFFFF; display: flex; align-items: center; justify-content: center;
+         font-size: 18px; font-weight: 800; margin-bottom: 12px;
+         box-shadow: 0 4px 10px rgba(0,0,0,0.25);">{iniciais}</div>
+    <p style="color: #012869; font-weight: 800; font-size: 14px;
+       margin: 0 0 12px 0; line-height: 1.3;">{nome or 'TÉCNICO'}</p>
+    <div style="font-size: 12px; color: #475569; margin-bottom: 6px;">
+        Login: <span style="background: #E2E8F0; border: 1px solid #CBD5E1;
+        color: #0F172A; padding: 2px 8px; border-radius: 4px;
+        font-family: 'JetBrains Mono', monospace; font-weight: 600;">{login or '—'}</span>
+    </div>
+    <div style="font-size: 12px; color: #475569; margin-bottom: 14px;">
+        User: <span style="background: #E2E8F0; border: 1px solid #CBD5E1;
+        color: #0F172A; padding: 2px 8px; border-radius: 4px;
+        font-family: 'JetBrains Mono', monospace; font-weight: 600;">{user or '—'}</span>
+    </div>
+    <div style="background: #D1FAE5; border: 1px solid #6EE7B7; color: #065F46;
+         padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
+         display: inline-flex; align-items: center; gap: 6px;">
+        <span style="width: 6px; height: 6px; background: #10B981;
+        border-radius: 50%; display: inline-block;"></span> Online
+    </div>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown('<div class="btn-logout-portal">', unsafe_allow_html=True)
+        if st.button("🚪 Encerrar Sessão", use_container_width=True, key="btn_logout_portal"):
+            st.session_state["authenticated"] = False
+            st.session_state["user_info"] = {}
+            st.switch_page(pagina_logout)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown(
+            """
+<div style="text-align: center; font-size: 10px; color: #64748B;
+     margin-top: 18px; font-weight: 600; letter-spacing: 1px;">
+    POWERED BY <span style="color: #F97316;">TOTALE</span>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+# ====================================================
+# RENOMEAR ITENS DO MENU (helper reutilizável)
+# ====================================================
+def injetar_css_menu_nomes(nomes: dict[str, str]) -> None:
+    """
+    Renomeia itens do menu multipage via CSS.
+    Ex.: injetar_css_menu_nomes({"consultivo": "🗣️ Consultivo",
+                                 "producao": "📊 Produção"})
+    """
+    regras = ""
+    for slug, titulo in nomes.items():
+        regras += f"""
+        [data-testid="stSidebarNav"] a[href*="{slug}"] span {{ font-size: 0 !important; }}
+        [data-testid="stSidebarNav"] a[href*="{slug}"] span::before {{
+            content: "{titulo}" !important;
+            font-size: 14px !important; font-weight: 700 !important;
+            color: inherit !important;
+        }}"""
+    st.markdown(f"<style>{regras}</style>", unsafe_allow_html=True)

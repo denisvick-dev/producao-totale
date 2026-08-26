@@ -8,7 +8,7 @@ import streamlit as st
 
 # ⚠️ CONFIGURAÇÃO OBRIGATÓRIA NO TOPO
 st.set_page_config(
-    page_title="Produção | Totale",
+    page_title="Visão Produção | TOTALE",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -36,6 +36,8 @@ try:
         render_hero_totale_1,
         render_insight,
         render_section_header,
+        injetar_css_menu_nomes,
+        aplicar_tema_claro,
     )
 except ImportError:
     st.error("⚠️ Módulo 'componentes.py' não encontrado.")
@@ -288,6 +290,11 @@ def _criar_card_tooltip(
 # RENDERIZAÇÃO DA PÁGINA
 # ====================================================
 aplicar_estilo()
+aplicar_tema_claro()
+injetar_css_menu_nomes({
+    "consultivo": "🗣️ Consultivo",
+    "producao": "📊 Produção",
+})
 _injetar_css_tooltip()
 
 tecnico = str(st.session_state.get("tecnico", ""))
