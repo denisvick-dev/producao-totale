@@ -9,9 +9,8 @@ Uso em qualquer página:
     aplicar_estilo()
 
 Fontes corporativas:
-    • Inter        → textos, labels, inputs, tabelas, botões
-    • Manrope      → títulos, KPIs, headers, badges
-    • JetBrains Mono → blocos de código
+    • IBM Plex Sans → textos, títulos, KPIs, labels, tabelas e botões
+    • IBM Plex Mono → blocos de código
     • Material     → Ícones nativos e customizados
 """
 
@@ -40,33 +39,28 @@ FmtDict = dict[str, BaseFormatter | None]
 
 
 # ====================================================
-# TIPOGRAFIA CORPORATIVA (INTER + MANROPE + JETBRAINS)
+# TIPOGRAFIA CORPORATIVA (IBM PLEX SANS + IBM PLEX MONO)
 # ====================================================
-FONTE_TITULO = (
-    "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-)
-FONTE_TEXTO = (
-    "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-)
-FONTE_CODIGO = "'JetBrains Mono', 'Fira Code', Consolas, monospace"
+FONTE_TITULO = "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+FONTE_TEXTO = "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+FONTE_CODIGO = "'IBM Plex Mono', Consolas, monospace"
 
 # ── URLs do Google Fonts (Otimizadas e completas para Ícones) ──
 _GOOGLE_FONTS_URLS: list[str] = [
     # Inter: pesos 300–800, latin + latin-ext
     (
         "https://fonts.googleapis.com/css2"
-        "?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;"
-        "14..32,600;14..32,700;14..32,800&display=swap"
+        "?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
     ),
-    # Manrope: pesos 300–900
+    # IBM Plex Sans: pesos 400–700
     (
         "https://fonts.googleapis.com/css2"
-        "?family=Manrope:wght@300;400;500;600;700;800;900&display=swap"
+        "?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
     ),
-    # JetBrains Mono: pesos 400–500 (código)
+    # IBM Plex Mono: pesos 400–500 (código)
     (
         "https://fonts.googleapis.com/css2"
-        "?family=JetBrains+Mono:wght@400;500&display=swap"
+        "?family=IBM+Plex+Mono:wght@400;500&display=swap"
     ),
     # Material Icons (Clássico - Necessário para o Streamlit nativo)
     "https://fonts.googleapis.com/icon?family=Material+Icons",
@@ -93,16 +87,16 @@ _PRECONNECT_URLS: list[str] = [
 # ====================================================
 # PALETA CORPORATIVA TOTALE
 # ====================================================
-COR_PRIMARIA = "#012869"
-COR_SECUNDARIA = "#F37C04"
-COR_SUCESSO = "#059669"
-COR_ALERTA = "#DC2626"
-COR_NEUTRO = "#64748B"
-COR_TEXTO = "#1F2937"
-COR_TEXTO_2 = "#374151"
-COR_TEXTO_3 = "#6B7280"
-COR_BORDA = "#E2E8F0"
-COR_FUNDO = "#F8FAFC"
+COR_PRIMARIA = "#12304A"
+COR_SECUNDARIA = "#C66A16"
+COR_SUCESSO = "#16745B"
+COR_ALERTA = "#B42318"
+COR_NEUTRO = "#536779"
+COR_TEXTO = "#172B3A"
+COR_TEXTO_2 = "#3E5566"
+COR_TEXTO_3 = "#6B7C89"
+COR_BORDA = "#D9E2E8"
+COR_FUNDO = "#F4F7F9"
 
 _TEMA_CORES: dict[str, str] = {
     "azul": COR_PRIMARIA,
@@ -113,11 +107,11 @@ _TEMA_CORES: dict[str, str] = {
 }
 
 _INSIGHT_CONFIG: dict[str, tuple[str, str, str, str]] = {
-    "ok": ("#D1FAE5", "#065F46", "#059669", "✅"),
-    "info": ("#DBEAFE", "#1E40AF", "#3B82F6", "ℹ️"),
-    "alerta": ("#FEF3C7", "#92400E", "#F59E0B", "⚠️"),
-    "critico": ("#FEE2E2", "#991B1B", "#DC2626", "🚨"),
-    "acao": ("#EDE9FE", "#5B21B6", "#8B5CF6", "🎯"),
+    "ok": ("#E8F4EF", "#145C49", "#16745B", "✅"),
+    "info": ("#E8F0F5", "#214B68", "#4D7B99", "ℹ️"),
+    "alerta": ("#FFF3E4", "#8A4B16", "#C66A16", "⚠️"),
+    "critico": ("#FDECEA", "#8E2119", "#B42318", "🚨"),
+    "acao": ("#EAF1F3", "#245665", "#327D8C", "🎯"),
 }
 
 _PLOTLY_COLORWAY = [
@@ -125,11 +119,11 @@ _PLOTLY_COLORWAY = [
     COR_SECUNDARIA,
     COR_SUCESSO,
     COR_ALERTA,
-    "#8B5CF6",
-    "#EC4899",
-    "#14B8A6",
-    "#F59E0B",
-    "#6366F1",
+    "#327D8C",
+    "#7A8791",
+    "#B9853B",
+    "#6B8E8E",
+    "#A65D3D",
     COR_NEUTRO,
 ]
 
@@ -140,29 +134,29 @@ _PLOTLY_COLORWAY = [
 def _configurar_plotly_global() -> None:
     template = go.layout.Template(
         layout=go.Layout(
-            font=dict(family="Inter, sans-serif", size=13, color=COR_TEXTO),
+            font=dict(family="IBM Plex Sans, sans-serif", size=13, color=COR_TEXTO),
             title=dict(
-                font=dict(family="Manrope, sans-serif", size=20, color=COR_TEXTO),
+                font=dict(family="IBM Plex Sans, sans-serif", size=20, color=COR_TEXTO),
                 x=0.02,
                 xanchor="left",
             ),
             legend=dict(
-                font=dict(family="Inter, sans-serif", size=12, color=COR_TEXTO_2),
+                font=dict(family="IBM Plex Sans, sans-serif", size=12, color=COR_TEXTO_2),
             ),
             xaxis=dict(
-                tickfont=dict(family="Inter, sans-serif", size=12, color=COR_TEXTO_2),
-                title_font=dict(family="Inter, sans-serif", size=13, color=COR_TEXTO_2),
+                tickfont=dict(family="IBM Plex Sans, sans-serif", size=12, color=COR_TEXTO_2),
+                title_font=dict(family="IBM Plex Sans, sans-serif", size=13, color=COR_TEXTO_2),
                 gridcolor="#F1F5F9",
                 zerolinecolor="#CBD5E1",
             ),
             yaxis=dict(
-                tickfont=dict(family="Inter, sans-serif", size=12, color=COR_TEXTO_2),
-                title_font=dict(family="Inter, sans-serif", size=13, color=COR_TEXTO_2),
+                tickfont=dict(family="IBM Plex Sans, sans-serif", size=12, color=COR_TEXTO_2),
+                title_font=dict(family="IBM Plex Sans, sans-serif", size=13, color=COR_TEXTO_2),
                 gridcolor="#F1F5F9",
                 zerolinecolor="#CBD5E1",
             ),
             hoverlabel=dict(
-                font=dict(family="Inter, sans-serif", size=13),
+                font=dict(family="IBM Plex Sans, sans-serif", size=13),
                 bgcolor="white",
                 bordercolor=COR_BORDA,
             ),
@@ -224,9 +218,8 @@ def _injetar_fontes_no_head_pai() -> None:
 
             if ('fonts' in doc) {{
                 const fontFamilies = [
-                    {{ family: 'Inter', weights: ['400','500','600','700','800'] }},
-                    {{ family: 'Manrope', weights: ['400','600','700','800','900'] }},
-                    {{ family: 'JetBrains Mono', weights: ['400','500'] }},
+                    {{ family: 'IBM Plex Sans', weights: ['400','500','600','700'] }},
+                    {{ family: 'IBM Plex Mono', weights: ['400','500'] }},
                 ];
                 fontFamilies.forEach(function(ff) {{
                     ff.weights.forEach(function(w) {{
@@ -256,9 +249,8 @@ def _injetar_css_global() -> None:
     css = f"""
     <style>
     /* ═════════ IMPORTAÇÃO VIA CSS (FALLBACK) ═════════ */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap');
-    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800;900&display=swap');
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
     @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
     @import url('https://fonts.googleapis.com/icon?family=Material+Icons+Outlined');
     @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
@@ -278,12 +270,12 @@ def _injetar_css_global() -> None:
         --cor-texto-3:    {COR_TEXTO_3};
         --cor-borda:      {COR_BORDA};
         --cor-fundo:      {COR_FUNDO};
-        --radius-sm: 6px;
-        --radius-md: 10px;
-        --radius-lg: 14px;
-        --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-        --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-        --shadow-lg: 0 10px 28px rgba(0,0,0,0.12);
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 10px;
+        --shadow-sm: 0 1px 2px rgba(18,48,74,0.06);
+        --shadow-md: 0 5px 14px rgba(18,48,74,0.10);
+        --shadow-lg: 0 12px 28px rgba(18,48,74,0.14);
     }}
 
     /* ═══════════════════════════════════════════════════════════
@@ -372,7 +364,7 @@ def _injetar_css_global() -> None:
         font-family: var(--font-texto) !important;
     }}
 
-    /* ── Títulos e Cabeçalhos (Manrope) ── */
+    /* ── Títulos e Cabeçalhos (IBM Plex Sans) ── */
     h1, h2, h3, h4, h5, h6,
     [data-testid="stHeader"] h1,
     [data-testid="stMarkdownContainer"] h1,
@@ -436,7 +428,7 @@ def _injetar_css_global() -> None:
         font-variant-numeric: tabular-nums;
     }}
 
-    /* ── Código (JetBrains Mono) ── */
+    /* ── Código (IBM Plex Mono) ── */
     code, pre, kbd, samp, code span,
     [data-testid="stCodeBlock"] *,
     .stCodeBlock * {{
@@ -468,7 +460,7 @@ def _injetar_css_global() -> None:
     ::-webkit-scrollbar-thumb:hover {{ background: #94A3B8; }}
 
     section[data-testid="stSidebar"] {{
-        background: linear-gradient(165deg, #F8FAFC 0%, #F1F5F9 50%, #E2E8F0 100%) !important;
+        background: linear-gradient(165deg, #FFFFFF 0%, #F4F7F9 55%, #E8EEF2 100%) !important;
         border-right: 1px solid var(--cor-borda) !important;
         box-shadow: 4px 0 24px rgba(1, 40, 105, 0.06) !important;
     }}
@@ -500,9 +492,9 @@ def _injetar_css_global() -> None:
     section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"],
     section[data-testid="stSidebar"] li a[aria-current="page"],
     section[data-testid="stSidebar"] li a[aria-selected="true"] {{
-        background: linear-gradient(90deg, #FFFDF9 0%, #FFF3E5 60%, #FFE8CC 100%) !important;
-        border: 1.5px solid #F37C04 !important;
-        border-left: 4px solid #F37C04 !important;
+        background: #EAF1F3 !important;
+        border: 1.5px solid #C66A16 !important;
+        border-left: 4px solid #C66A16 !important;
         border-radius: 12px !important;
         box-shadow: 0 4px 12px rgba(243, 124, 4, 0.1) !important;
         font-family: var(--font-texto) !important;
@@ -525,15 +517,23 @@ def _injetar_css_global() -> None:
        HEROS E COMPONENTES
        ═══════════════════════════════════════════════════════════ */
     .hero-totale-1 {{
-        background: linear-gradient(90deg, #012869 0%, #1e40a6 35%, #4c4c8a 55%, #b86a2e 85%, #d3751f 100%);
-        border-radius: var(--radius-lg); padding: 28px 32px;
+        background: linear-gradient(
+            112deg,
+            #0C263D 0%,
+            #123B59 24%,
+            #2A6680 43%,
+            #1C4A66 58%,
+            #B85E1D 82%,
+            #D47A2A 100%
+        );
+        border-radius: var(--radius-md); padding: 28px 32px;
         position: relative; overflow: hidden; margin-bottom: 28px;
-        box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 20px; min-height: 100px;
+        box-shadow: 0 8px 24px rgba(18, 48, 74, 0.16); display: flex; align-items: center; gap: 20px; min-height: 100px;
     }}
     .hero-totale-1::after {{
         content: ''; position: absolute; top: -50%; bottom: -50%; left: 45%; width: 60px;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-        transform: rotate(25deg); pointer-events: none;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+        transform: rotate(25deg); pointer-events: none; opacity: 0.85;
     }}
     .hero-t1-icon-box {{
         background: white; padding: 10px 12px; border-radius: var(--radius-md);
@@ -587,7 +587,7 @@ def _injetar_css_global() -> None:
     }}
 
     .kpi-card {{
-        background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+        background: #FFFFFF;
         border-radius: var(--radius-md); padding: 20px 24px; box-shadow: var(--shadow-sm);
         border: 1px solid var(--cor-borda); border-left: 4px solid var(--cor-primaria);
         transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -898,13 +898,13 @@ def aplicar_tema_claro() -> None:
         [data-testid="stAppViewContainer"],
         [data-testid="stMain"],
         [data-testid="stAppViewBlockContainer"] {
-            background: #F8FAFC !important;
-            color: #1F2937 !important;
+            background: #F4F7F9 !important;
+            color: #172B3A !important;
         }
 
         /* ── SIDEBAR CLARO ── */
         section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #FFFFFF 0%, #F4F5F7 100%) !important;
+            background: linear-gradient(180deg, #FFFFFF 0%, #E8EEF2 100%) !important;
             border-right: 1px solid #E2E8F0 !important;
         }
         section[data-testid="stSidebar"],
@@ -939,8 +939,8 @@ def aplicar_tema_claro() -> None:
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"],
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] {
             background: linear-gradient(90deg, #FFFDF9 0%, #FFF3E5 60%, #FFE8CC 100%) !important;
-            border: 1.5px solid #F37C04 !important;
-            border-left: 4px solid #F37C04 !important;
+            border: 1.5px solid #C66A16 !important;
+            border-left: 4px solid #C66A16 !important;
             box-shadow: 0 4px 12px rgba(243,124,4,0.10) !important;
         }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] span,
@@ -1010,7 +1010,7 @@ def render_sidebar_portal(
      border: 1px solid #CBD5E1; border-left: 4px solid #F97316;
      border-radius: 12px; padding: 18px 16px; margin: 14px 14px 8px 14px;
      box-shadow: 0 4px 14px rgba(0,0,0,0.06);
-     color: #1E293B; font-family: 'Inter', sans-serif;">
+    color: #172B3A; font-family: 'IBM Plex Sans', sans-serif;">
     <div style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
          color: #F97316; margin-bottom: 14px;">⚡ TOTALE · PORTAL</div>
     <div style="width: 54px; height: 54px; border-radius: 50%;
@@ -1023,12 +1023,12 @@ def render_sidebar_portal(
     <div style="font-size: 12px; color: #475569; margin-bottom: 6px;">
         Login: <span style="background: #E2E8F0; border: 1px solid #CBD5E1;
         color: #0F172A; padding: 2px 8px; border-radius: 4px;
-        font-family: 'JetBrains Mono', monospace; font-weight: 600;">{login or '—'}</span>
+        font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{login or '—'}</span>
     </div>
     <div style="font-size: 12px; color: #475569; margin-bottom: 14px;">
         User: <span style="background: #E2E8F0; border: 1px solid #CBD5E1;
         color: #0F172A; padding: 2px 8px; border-radius: 4px;
-        font-family: 'JetBrains Mono', monospace; font-weight: 600;">{user or '—'}</span>
+        font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{user or '—'}</span>
     </div>
     <div style="background: #D1FAE5; border: 1px solid #6EE7B7; color: #065F46;
          padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;

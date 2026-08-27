@@ -2,6 +2,7 @@
 import io
 import locale
 import requests
+import textwrap
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -35,7 +36,6 @@ try:
         aplicar_estilo,
         aplicar_tema_claro,
         render_hero_totale_1,
-        render_sidebar_portal,
         injetar_css_menu_nomes,
         render_kpi,
         render_insight,
@@ -73,6 +73,12 @@ def injetar_css_menu_sidebar():
         
         /* Oculta item Home padrão */
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child { display: none !important; }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul {
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="producao"]) { order: 1 !important; }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="consultivo"]) { order: 2 !important; }
         
         /* Renomeia Itens do Menu */
         [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
@@ -133,8 +139,9 @@ def render_sidebar_perfil():
         iniciais = "US"
 
     with st.sidebar:
-        st.markdown(
-            f"""
+        st.html(
+            textwrap.dedent(
+                f"""
             <div style="background: linear-gradient(145deg, #F8FAFC 0%, #E2E8F0 100%); 
                         border: 1px solid #CBD5E1; border-left: 4px solid #F97316; 
                         border-radius: 12px; padding: 16px; margin: 16px; 
@@ -146,7 +153,7 @@ def render_sidebar_perfil():
                 
                 <div style="width: 52px; height: 52px; border-radius: 50%; 
                             background: linear-gradient(135deg, #012869 0%, #F97316 100%); 
-                            color: white; display: flex; align-items: center; justify-content: center; 
+                            color: #FFFFFF !important; display: flex; align-items: center; justify-content: center; 
                             font-size: 18px; font-weight: 800; margin-bottom: 12px;
                             box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
                     {iniciais}
@@ -172,8 +179,8 @@ def render_sidebar_perfil():
                     Online
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True,
+                """
+            ),
         )
 
         st.markdown('<div class="btn-logout">', unsafe_allow_html=True)
@@ -182,14 +189,10 @@ def render_sidebar_perfil():
             st.switch_page("streamlit_app.py")
         st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown(
-            """
-            <div style="text-align: center; font-size: 10px; color: #64748B; margin-top: 16px; font-weight: 600; letter-spacing: 1px;">
-                POWERED BY <span style="color: #F97316;">TOTALE</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+
+
+injetar_css_menu_sidebar()
+render_sidebar_perfil()
 
 
 # ====================================================
@@ -307,11 +310,53 @@ class Calculos:
 class Utilitarios:
     @staticmethod
     def buscar_coluna(df: pd.DataFrame, palavras: List[str]) -> Optional[str]:
-        cols = {c.upper(): c for c in df.columns}
+        cols = {str(c).strip().upper(): c for c in df.columns}
         for p in palavras:
-            if p in cols:
-                return cols[p]
+            chave = str(p).strip().upper()
+            if chave in cols:
+                return cols[chave]
         return None
+
+    @staticmethod
+    def converter_data(series: pd.Series) -> pd.Series:
+        """
+        Converte datas detectando o formato automaticamente:
+        - ISO (2026-12-08)          → direto
+        - Brasileiro (08/12/2026)   → dayfirst=True
+        - Americano (12/08/2026)    → dayfirst=False (só se confirmado)
+        Ambíguo → assume padrão brasileiro (DD/MM/YYYY).
+        """
+        if pd.api.types.is_datetime64_any_dtype(series):
+            return series
+
+        s = series.astype(str).str.strip()
+        validos = s[~s.str.lower().isin(["", "nan", "nat", "none"])]
+
+        if validos.empty:
+            return pd.to_datetime(series, errors="coerce")
+
+        # 1. ISO → pandas resolve sozinho
+        if validos.str.match(r"^\d{4}-\d{1,2}-\d{1,2}").mean() > 0.6:
+            return pd.to_datetime(s, errors="coerce")
+
+        # 2. Extrai partes numéricas (d1/d2/ano)
+        partes = validos.str.extract(r"^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$")
+        if partes.empty or partes[0].isna().all():
+            return pd.to_datetime(s, errors="coerce", dayfirst=True)
+
+        p1 = pd.to_numeric(partes[0], errors="coerce")
+        p2 = pd.to_numeric(partes[1], errors="coerce")
+
+        # 3. Posição 1 tem valor > 12 → só pode ser DIA (formato BR confirmado)
+        if (p1 > 12).any():
+            return pd.to_datetime(s, errors="coerce", dayfirst=True)
+
+        # 4. Posição 2 tem valor > 12 → posição 2 é o DIA (formato US confirmado)
+        if (p2 > 12).any():
+            return pd.to_datetime(s, errors="coerce", dayfirst=False)
+
+        # 5. Ambíguo → padrão Brasil
+        return pd.to_datetime(s, errors="coerce", dayfirst=True)
 
     @staticmethod
     def finalizar_colunas(df: pd.DataFrame, fator_proj: float = 1.0) -> pd.DataFrame:
@@ -336,7 +381,7 @@ class Utilitarios:
 
         col_data = Utilitarios.buscar_coluna(df, ["DATA", "DATA AGENDAMENTO", "DATE"])
         if col_data:
-            df["DATA"] = pd.to_datetime(df[col_data], errors="coerce", dayfirst=True)
+            df["DATA"] = Utilitarios.converter_data(df[col_data])
 
         df["PROJ_CONSULTIVOS"] = (df["CONSULTIVOS"] * fator_proj).round().astype(int)
         df["PROJ_VENDAS"] = (df["VENDAS"] * fator_proj).round().astype(int)
@@ -447,16 +492,13 @@ def carregar_e_processar_base() -> pd.DataFrame:
 # ====================================================
 aplicar_estilo()
 aplicar_tema_claro()
-render_sidebar_portal(
-    nome=nome_logado.title(),
-    login=login_logado,
-    user=user_logado,
-)
 
-injetar_css_menu_nomes({
-    "consultivo": "🗣️ Consultivo",
-    "producao": "📊 Produção",
-})
+injetar_css_menu_nomes(
+    {
+        "consultivo": "🗣️ Consultivo",
+        "producao": "📊 Produção",
+    }
+)
 
 render_hero_totale_1(
     titulo="Raio-X: Consultivo",
@@ -485,10 +527,6 @@ col_tec = Utilitarios.buscar_coluna(
     df_cons, ["VENDEDOR", "TÉCNICO", "TECNICO", "NOME EQUIPE", "NOME"]
 )
 col_login = Utilitarios.buscar_coluna(df_cons, ["LOGIN", "MATRICULA", "RE"])
-col_sup = Utilitarios.buscar_coluna(
-    df_cons, ["SUPERVISOR", "MONITOR", "GESTOR", "COORDENADOR"]
-)
-col_base = Utilitarios.buscar_coluna(df_cons, ["BASE", "PROJETO", "CIDADE", "FILIAL"])
 
 df_cons[col_tec] = df_cons[col_tec].astype(str).str.strip().str.upper()
 
@@ -513,30 +551,16 @@ if df_tec.empty:
 # ====================================================
 # 9. CARDS E PAINEL DO TÉCNICO
 # ====================================================
-sup_tec = (
-    df_tec[col_sup].mode()[0]
-    if col_sup and not df_tec[col_sup].dropna().empty
-    else "Não Atribuído"
-)
-base_tec = (
-    df_tec[col_base].mode()[0]
-    if col_base and not df_tec[col_base].dropna().empty
-    else "Não Atribuída"
-)
-render_insight(
-    f"👤 <b>Gestor:</b> {sup_tec} &nbsp;|&nbsp; 📍 <b>Base:</b> {base_tec}", "info"
-)
-
 t_cons = int(df_tec["CONSULTIVOS"].sum())
 t_prod = int(df_tec["VENDAS"].sum())
 t_mesh = int(df_tec["MESH"].sum())
 t_tv = int(df_tec["TV"].sum())
 t_vir = int(df_tec["VIRTUA"].sum())
 
-proj_cons = int(df_tec["PROJ_CONSULTIVOS"].sum())
-proj_prod = int(df_tec["PROJ_VENDAS"].sum())
 taxa_conversao = (t_prod / t_cons) if t_cons > 0 else 0.0
 fator_proj, falt_dias = Calculos.fator_projecao(df_tec)
+proj_cons = round(t_cons * fator_proj)
+proj_prod = round(t_prod * fator_proj)
 
 # ── Linha 1: Realizado ──
 st.markdown("### 🎯 Resultado Realizado (Até o momento)")

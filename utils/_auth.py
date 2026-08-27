@@ -92,14 +92,16 @@ class AuthManager:
                     or "ADMIN" in user_nome.upper()
                 )
 
-                # Salva sessão do Streamlit
                 st.session_state["authenticated"] = True
-                st.session_state["is_admin"] = is_admin
                 st.session_state["user_info"] = {
-                    "tecnico": nome_tecnico,
-                    "login": login_codigo,
-                    "user": user_nome,
+                    "tecnico": nome_tecnico,   # coluna Técnico
+                    "login": login_codigo,     # coluna Login (Z...)
+                    "user": user_nome,         # coluna User (NOME.SOBRENOME)
                 }
+                # espelho legado (opcional, ajuda páginas antigas)
+                st.session_state["tecnico"] = nome_tecnico
+                st.session_state["login_code"] = login_codigo
+                st.session_state["user_code"] = user_nome
 
                 logger.info("Usuário %s (%s) logado com sucesso.", user_nome, login_codigo)
                 return True, "Login efetuado com sucesso!"

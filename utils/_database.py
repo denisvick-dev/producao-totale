@@ -32,24 +32,32 @@ class GoogleSheetsDB:
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive.readonly",
-            "https://www.googleapis.com/auth/drive"
+            "https://www.googleapis.com/auth/drive",
         ]
 
         creds_dict = get_credentials_dict()
         if creds_dict:
-            self.credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            self.credentials = Credentials.from_service_account_info(
+                creds_dict, scopes=scopes
+            )
         else:
             creds_file = "credentials.json"
             if not os.path.exists(creds_file):
                 raise FileNotFoundError("❌ Arquivo 'credentials.json' não encontrado!")
-            self.credentials = Credentials.from_service_account_file(creds_file, scopes=scopes)
+            self.credentials = Credentials.from_service_account_file(
+                creds_file, scopes=scopes
+            )
 
         self.client = gspread.authorize(self.credentials)
 
     def _get_worksheet(self, spreadsheet_id: str):
         """Tenta abrir a planilha como Google Sheets nativo."""
         spreadsheet = self.client.open_by_key(spreadsheet_id)
-        ws = spreadsheet.get_worksheet(WORKSHEET_NAME) if isinstance(WORKSHEET_NAME, int) else None
+        ws = (
+            spreadsheet.get_worksheet(WORKSHEET_NAME)
+            if isinstance(WORKSHEET_NAME, int)
+            else None
+        )
         if ws is None:
             ws = spreadsheet.sheet1
         return ws
@@ -59,7 +67,11 @@ class GoogleSheetsDB:
         try:
             ws = self._get_worksheet(USERS_SPREADSHEET_ID)
             records = ws.get_all_records()
-            return pd.DataFrame(records) if records else pd.DataFrame(columns=HEADERS_USERS)
+            return (
+                pd.DataFrame(records)
+                if records
+                else pd.DataFrame(columns=HEADERS_USERS)
+            )
         except Exception as e:
             st.error(f"Erro na base de usuários: {e}")
             return pd.DataFrame(columns=HEADERS_USERS)
@@ -93,7 +105,7 @@ class GoogleSheetsDB:
             df = self.get_users_dataframe()
             df.loc[df["Login"] == login_real, "Pass"] = novo_hash_bcrypt
             return self.save_users_dataframe(df)
-            
+
             # EXEMPLO SE VOCÊ USA SUPABASE CLIENT:
             # response = self.supabase.table("sua_tabela").update({"Pass": novo_hash_bcrypt}).eq("Login", login_real).execute()
             # return len(response.data) > 0
@@ -101,22 +113,25 @@ class GoogleSheetsDB:
         except Exception as e:
             print(f"Erro no banco: {e}")
             return False
-        
-        
+
     def find_user_by_login_or_user(self, identifier: str) -> Optional[Dict[str, Any]]:
         df = self.get_users_dataframe()
-        if df.empty: return None
-        
+        if df.empty:
+            return None
+
         ident = identifier.strip().lower()
         for _, row in df.iterrows():
-            if ident in [str(row.get("Login", "")).lower(), str(row.get("User", "")).lower()]:
+            if ident in [
+                str(row.get("Login", "")).lower(),
+                str(row.get("User", "")).lower(),
+            ]:
                 return {str(key): value for key, value in row.to_dict().items()}
         return None
 
     # ========================================================
     # LOGICA ESPECIAL PARA PRODUÇÃO (EXCEL .XLSX)
     # ========================================================
-    
+
     def _download_binary_excel(self, file_id: str) -> pd.DataFrame:
         """
         Faz o download de um arquivo que é EXCEL (.xlsx) dentro do Drive.
@@ -127,15 +142,17 @@ class GoogleSheetsDB:
 
         # URL para baixar arquivos binários (não-nativos do Google) do Drive
         url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
-        
+
         headers = {"Authorization": f"Bearer {self.credentials.token}"}
         response = requests.get(url, headers=headers)
 
         if response.status_code == 200:
             # Lê o binário .xlsx usando engine openpyxl
-            return pd.read_excel(io.BytesIO(response.content), engine='openpyxl')
+            return pd.read_excel(io.BytesIO(response.content), engine="openpyxl")
         else:
-            st.error(f"Erro no download binário: {response.status_code} - {response.text}")
+            st.error(
+                f"Erro no download binário: {response.status_code} - {response.text}"
+            )
             return pd.DataFrame()
 
     def get_producao_dataframe(self) -> pd.DataFrame:
@@ -172,7 +189,6 @@ class GoogleSheetsDB:
 
         return pd.concat(frames, ignore_index=True)
 
-
     def _ler_aba_producao(self, nome_aba: str) -> pd.DataFrame:
         """Lê uma aba específica da planilha de produção (Sheets nativo ou Excel)."""
         try:
@@ -189,7 +205,6 @@ class GoogleSheetsDB:
                 return self._download_excel_sheet(PRODUCAO_SPREADSHEET_ID, nome_aba)
             except Exception:
                 return pd.DataFrame()
-
 
     def _download_excel_sheet(self, file_id: str, sheet_name: str) -> pd.DataFrame:
         """Download binário do Excel e leitura de uma aba específica."""
@@ -225,28 +240,42 @@ class GoogleSheetsDB:
                 return pd.DataFrame()
             return pd.DataFrame()
 
-
+    # exemplo de lógica esperada no _database.py
     def get_producao_by_tecnico(
-        self, tecnico: str, login_code: str, user_code: str
+        self, tecnico: str, login: str, user: str
     ) -> pd.DataFrame:
-        df = self.get_producao_dataframe()
+        df = self.get_producao_dataframe()  # base completa
         if df.empty:
             return df
 
-        targets = {
-            str(tecnico).strip().lower(),
-            str(login_code).strip().lower(),
-            str(user_code).strip().lower(),
-        }
-        targets.discard("")
-
+        cols = {c.upper(): c for c in df.columns}
         mask = pd.Series(False, index=df.index)
-        for col in df.columns:
-            if col == "__origem__":
-                continue
-            mask |= df[col].astype(str).str.strip().str.lower().isin(targets)
 
-        return df[mask].reset_index(drop=True)
+        for key, val in [
+            (["TÉCNICO", "TECNICO", "VENDEDOR", "NOME"], tecnico),
+            (["LOGIN", "LOGIN NETSALES", "MATRICULA"], login),
+            (["USER", "USUARIO", "USUÁRIO"], user),
+        ]:
+            if not val:
+                continue
+            col = next((cols[k] for k in key if k in cols), None)
+            if col:
+                mask |= df[col].astype(str).str.strip().str.upper() == val.upper()
+                # fallback parcial no nome
+                if (
+                    "TEC" in (col or "").upper()
+                    or "NOME" in (col or "").upper()
+                    or "VEND" in (col or "").upper()
+                ):
+                    mask |= (
+                        df[col]
+                        .astype(str)
+                        .str.upper()
+                        .str.contains(val.upper(), na=False, regex=False)
+                    )
+
+        return df.loc[mask].copy()
+
 
 @st.cache_resource(ttl=300)
 def get_db() -> GoogleSheetsDB:
