@@ -7,7 +7,7 @@ PRODUCAO_SPREADSHEET_ID: str = "11Dp9WdZYUrT_LBvfo07Mi8muKXZykU7v"
 
 WORKSHEET_NAME: int = 0  # Primeira aba de cada planilha
 
-HEADERS_USERS = ["Técnico", "Login", "User", "Pass"]
+HEADERS_USERS = ["Técnico", "Login", "User", "Pass", "Perfil"]
 
 
 def get_credentials_dict() -> Optional[Dict[str, Any]]:

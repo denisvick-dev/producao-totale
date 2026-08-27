@@ -86,17 +86,34 @@ class AuthManager:
                 login_codigo = str(row.get("Login", "")).strip()
                 user_nome = str(row.get("User", "")).strip()
 
-                # Regra de perfil Admin
+                perfil_usuario = ""
+                for coluna, valor in row.items():
+                    if str(coluna).strip().lower() in {"perfil", "role", "cargo"}:
+                        perfil_usuario = str(valor).strip()
+                        break
+
+                perfil_normalizado = perfil_usuario.upper()
                 is_admin = (
-                    user_nome.upper().endswith(".ADMIN")
+                    perfil_normalizado in {
+                        "ADMIN",
+                        "ADM",
+                        "ADMINISTRADOR",
+                        "GESTOR",
+                        "MANAGER",
+                        "SUPERVISOR",
+                        "COORDENADOR",
+                    }
                     or "ADMIN" in user_nome.upper()
+                    or login_codigo.upper().startswith("ADM")
                 )
 
                 st.session_state["authenticated"] = True
+                st.session_state["is_admin"] = is_admin
                 st.session_state["user_info"] = {
                     "tecnico": nome_tecnico,   # coluna Técnico
                     "login": login_codigo,     # coluna Login (Z...)
                     "user": user_nome,         # coluna User (NOME.SOBRENOME)
+                    "perfil": perfil_usuario,
                 }
                 # espelho legado (opcional, ajuda páginas antigas)
                 st.session_state["tecnico"] = nome_tecnico

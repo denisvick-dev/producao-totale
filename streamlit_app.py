@@ -16,6 +16,7 @@ st.set_page_config(
 
 PAGINA_PRODUCAO = "pages/producao.py"
 PAGINA_CONSULTIVO = "pages/consultivo.py"
+PAGINA_ADMIN = "pages/admin.py"
 
 # ====================================================
 # ESTADO DA SESSÃO (ROTEAMENTO)
@@ -27,8 +28,10 @@ if "auth_view" not in st.session_state:
     st.session_state["auth_view"] = "login"  # 'login' ou 'trocar_senha'
 
 if st.session_state["authenticated"]:
-    st.switch_page(PAGINA_PRODUCAO)
-    st.switch_page(PAGINA_CONSULTIVO)
+    pagina_inicial = (
+        PAGINA_ADMIN if st.session_state.get("is_admin", False) else PAGINA_PRODUCAO
+    )
+    st.switch_page(pagina_inicial)
 
 auth = AuthManager()
 
@@ -71,6 +74,7 @@ def injetar_css_login():
         [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produção" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
         [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
         [data-testid="stSidebarNav"] a[href*="consultivo"] span::before { content: "🗣️ Consultivo" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
+        [data-testid="stSidebarNav"] a[href*="admin"] { display: none !important; }
         
         .sidebar-login-brand { background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(232,232,237,0.95)); border: 1px solid rgba(1,40,105,0.12); border-left: 4px solid #F37C04; border-radius: 14px; padding: 18px 16px; margin: 8px 0 12px 0; box-shadow: 0 8px 20px rgba(1,40,105,0.08), inset 0 1px 0 rgba(255,255,255,0.95); }
         .sidebar-login-brand .brand { font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #F37C04; margin-bottom: 8px; }
@@ -210,7 +214,12 @@ def tela_login() -> None:
                     with st.spinner("Autenticando..."):
                         success, message = auth.login(identifier, password)
                     if success:
-                        st.switch_page(PAGINA_PRODUCAO)
+                        pagina_inicial = (
+                            PAGINA_ADMIN
+                            if st.session_state.get("is_admin", False)
+                            else PAGINA_PRODUCAO
+                        )
+                        st.switch_page(pagina_inicial)
                     else:
                         st.error(f"❌ {message}")
 

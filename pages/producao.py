@@ -439,16 +439,12 @@ class Utilitarios:
         s = series.astype(str).str.strip().str.replace(r"[^\d.,\-]", "", regex=True)
         has_comma = s.str.contains(",")
         has_dot = s.str.contains(r"\.")
-        s = np.where(
-            has_comma & has_dot,
+        s = s.where(
+            ~(has_comma & has_dot),
             s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False),
-            np.where(has_comma, s.str.replace(",", ".", regex=False), s),
         )
-        return (
-            pd.Series(pd.to_numeric(s, errors="coerce"), index=series.index)
-            .fillna(0.0)
-            .astype(float)
-        )
+        s = s.where(~has_comma | has_dot, s.str.replace(",", ".", regex=False))
+        return pd.to_numeric(s, errors="coerce").fillna(0.0).astype(float)
 
     @staticmethod
     def formatar_dataframe_para_download(df: pd.DataFrame) -> bytes:
