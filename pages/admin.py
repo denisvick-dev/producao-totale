@@ -9,11 +9,14 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
+import bcrypt
 import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from utils._config import HEADERS_USERS
+from utils._database import get_db
 
 # ====================================================
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -575,7 +578,7 @@ class ProcessamentoAdmin:
             group_cols.append(col_supervisor)
 
         base = (
-            df.groupby(group_cols)[col_pontos]
+            df.groupby(group_cols, dropna=False)[col_pontos]
             .sum()
             .reset_index()
             .rename(columns={col_pontos: "Total Pontos"})
@@ -912,13 +915,13 @@ else:
     pts_gpon = total_pontos
     total_os = len(df_filtered)
 
-# Técnicos Elite (≥ 400 pts)
+# Classificação dos técnicos pela régua mensal de pontos
 tec_acima_400 = 0
 tec_criticos = 0
 if total_tecnicos > 0:
     pts_por_tec = df_filtered.groupby(col_tec)[col_pontos].sum()
     tec_acima_400 = int((pts_por_tec >= 400).sum())
-    tec_criticos = int((pts_por_tec < 275).sum())
+    tec_criticos = int(((pts_por_tec >= 275) & (pts_por_tec < 300)).sum())
 
 render_section_header("📊", "Visão Geral da Operação")
 k1, k2, k3, k4, k5 = st.columns(5)
@@ -969,7 +972,7 @@ with k4:
 with k5:
     st.markdown(
         _card(
-            "Críticos (< 275)",
+            "Próximo da Meta (275–300)",
             str(tec_criticos),
             "vermelho" if tec_criticos > 0 else "verde",
             f"{(tec_criticos / max(total_tecnicos, 1) * 100):.0f}% da equipe",
@@ -983,8 +986,8 @@ st.write("---")
 # ====================================================
 # 13. TABS PRINCIPAIS
 # ====================================================
-tab_ranking, tab_equipes, tab_graficos = st.tabs(
-    ["🏆 Ranking Geral", "👥 Por Equipe", "📈 Gráficos"]
+tab_ranking, tab_equipes, tab_graficos, tab_logins = st.tabs(
+    ["🏆 Ranking Geral", "👥 Por Equipe", "📈 Gráficos", "🔐 Logins"]
 )
 
 # ── TAB 1: RANKING GERAL ──
@@ -1001,6 +1004,15 @@ with tab_ranking:
         col_equipe=col_equipe,
         col_supervisor=col_supervisor,
         col_origem=col_origem,
+    )
+    df_ranking["Status"] = np.select(
+        [
+            df_ranking["Total Pontos"] >= 400,
+            df_ranking["Total Pontos"] >= 300,
+            df_ranking["Total Pontos"] >= 275,
+        ],
+        ["🏆 Elite", "✅ Meta", "🎯 Próximo da Meta"],
+        default="🔴 Crítico",
     )
 
     r1, r2, r3 = st.columns(3)
@@ -1048,6 +1060,7 @@ with tab_ranking:
     if col_supervisor and col_supervisor in df_ranking.columns:
         colunas_ranking.append(col_supervisor)
     colunas_ranking += [
+        "Status",
         "Qtd O.S.",
         "Total Pontos",
         "Dias Trab",
@@ -1066,6 +1079,7 @@ with tab_ranking:
         "Dias Trab": st.column_config.NumberColumn("Dias Trab.", format="%d"),
         col_tec: st.column_config.TextColumn("Nome Equipe"),
         col_supervisor: st.column_config.TextColumn("Supervisor"),
+        "Status": st.column_config.TextColumn("Status"),
         "Qtd O.S.": st.column_config.NumberColumn("📋 O.S.", format="%d"),
         "Total Pontos": st.column_config.NumberColumn("🎯 Pontos", format="%.2f"),
         "Média/Dia": st.column_config.NumberColumn("⚡ Méd/Dia", format="%.2f"),
@@ -1196,3 +1210,138 @@ with tab_graficos:
         st.plotly_chart(
             fig_hist, use_container_width=True, config={"displayModeBar": False}
         )
+
+# ── TAB 4: CRUD DE LOGINS ──
+with tab_logins:
+    render_section_header("🔐", "Gerenciamento de Logins")
+
+    try:
+        db = get_db()
+        df_users = db.get_users_dataframe()
+        df_users = df_users.reindex(columns=HEADERS_USERS, fill_value="")
+    except Exception as exc:
+        st.error(f"Não foi possível carregar a base de logins: {exc}")
+        df_users = pd.DataFrame(columns=HEADERS_USERS)
+
+    colunas_publicas = ["Técnico", "Login", "User", "Perfil"]
+    st.dataframe(
+        df_users[colunas_publicas],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.subheader("Adicionar login")
+    with st.form("form_novo_login", clear_on_submit=True):
+        novo_tecnico, novo_login, novo_user = st.columns(3)
+        with novo_tecnico:
+            tecnico = st.text_input("Técnico")
+        with novo_login:
+            login = st.text_input("Login")
+        with novo_user:
+            user = st.text_input("User")
+        nova_senha, novo_perfil = st.columns(2)
+        with nova_senha:
+            senha = st.text_input("Senha", type="password")
+        with novo_perfil:
+            perfil = st.selectbox("Perfil", ["TÉCNICO", "ADMIN"])
+        criar = st.form_submit_button("Criar login", type="primary")
+
+    if criar:
+        login_limpo = login.strip()
+        user_limpo = user.strip()
+        if not tecnico.strip() or not login_limpo or not user_limpo or not senha:
+            st.error("Preencha Técnico, Login, User e Senha.")
+        elif len(senha.strip()) < 6:
+            st.error("A senha deve possuir no mínimo 6 caracteres.")
+        elif (
+            df_users["Login"].astype(str).str.strip().str.upper().eq(login_limpo.upper()).any()
+            or df_users["User"].astype(str).str.strip().str.upper().eq(user_limpo.upper()).any()
+        ):
+            st.error("Login ou User já cadastrado.")
+        else:
+            novo_registro = {
+                "Técnico": tecnico.strip(),
+                "Login": login_limpo,
+                "User": user_limpo,
+                "Pass": bcrypt.hashpw(
+                    senha.strip().encode("utf-8"), bcrypt.gensalt(rounds=12)
+                ).decode("utf-8"),
+                "Perfil": perfil,
+            }
+            df_gravar = pd.concat(
+                [df_users, pd.DataFrame([novo_registro])], ignore_index=True
+            )
+            if db.save_users_dataframe(df_gravar):
+                st.success("Login criado com sucesso.")
+                st.rerun()
+            else:
+                st.error("Não foi possível salvar o novo login.")
+
+    if not df_users.empty:
+        st.subheader("Editar ou excluir login")
+        logins = df_users["Login"].astype(str).tolist()
+        login_selecionado = st.selectbox("Login cadastrado", logins)
+        indice = df_users.index[df_users["Login"].astype(str) == login_selecionado][0]
+        usuario_atual = df_users.loc[indice]
+
+        with st.form("form_editar_login"):
+            edit_tecnico, edit_user, edit_perfil = st.columns(3)
+            with edit_tecnico:
+                tecnico_editado = st.text_input(
+                    "Técnico", value=str(usuario_atual["Técnico"])
+                )
+            with edit_user:
+                user_editado = st.text_input("User", value=str(usuario_atual["User"]))
+            with edit_perfil:
+                perfil_atual = str(usuario_atual["Perfil"]).strip().upper()
+                opcoes_perfil = ["TÉCNICO", "SUPERVISOR", "ADMIN"]
+                perfil_editado = st.selectbox(
+                    "Perfil",
+                    opcoes_perfil,
+                    index=opcoes_perfil.index(perfil_atual)
+                    if perfil_atual in opcoes_perfil
+                    else 0,
+                )
+            senha_editada = st.text_input(
+                "Nova senha (deixe vazio para manter)", type="password"
+            )
+            salvar_edicao = st.form_submit_button("Salvar alterações")
+
+        excluir = st.button("Excluir login selecionado", type="secondary")
+
+        if salvar_edicao:
+            user_editado_limpo = user_editado.strip()
+            outros_users = df_users.index[
+                (df_users["User"].astype(str).str.strip().str.upper() == user_editado_limpo.upper())
+                & (df_users.index != indice)
+            ]
+            if not tecnico_editado.strip() or not user_editado_limpo:
+                st.error("Técnico e User são obrigatórios.")
+            elif len(outros_users) > 0:
+                st.error("User já cadastrado para outro login.")
+            elif senha_editada and len(senha_editada.strip()) < 6:
+                st.error("A nova senha deve possuir no mínimo 6 caracteres.")
+            else:
+                df_users.loc[indice, "Técnico"] = tecnico_editado.strip()
+                df_users.loc[indice, "User"] = user_editado_limpo
+                df_users.loc[indice, "Perfil"] = perfil_editado
+                if senha_editada:
+                    df_users.loc[indice, "Pass"] = bcrypt.hashpw(
+                        senha_editada.strip().encode("utf-8"), bcrypt.gensalt(rounds=12)
+                    ).decode("utf-8")
+                if db.save_users_dataframe(df_users):
+                    st.success("Login atualizado com sucesso.")
+                    st.rerun()
+                else:
+                    st.error("Não foi possível salvar as alterações.")
+
+        if excluir:
+            if login_selecionado.strip().upper() == login_logado.strip().upper():
+                st.error("Não é permitido excluir o login atualmente utilizado.")
+            else:
+                df_restante = df_users.drop(index=indice).reset_index(drop=True)
+                if db.save_users_dataframe(df_restante):
+                    st.success("Login excluído com sucesso.")
+                    st.rerun()
+                else:
+                    st.error("Não foi possível excluir o login.")

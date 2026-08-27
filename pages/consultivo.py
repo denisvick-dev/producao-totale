@@ -532,7 +532,7 @@ df_cons[col_tec] = df_cons[col_tec].astype(str).str.strip().str.upper()
 
 mask_logado = pd.Series(False, index=df_cons.index)
 if nome_logado:
-    mask_logado |= df_cons[col_tec].str.contains(nome_logado, regex=False, na=False)
+    mask_logado |= df_cons[col_tec].eq(nome_logado)
 if login_logado and col_login:
     mask_logado |= (
         df_cons[col_login].astype(str).str.strip().str.upper() == login_logado

@@ -256,6 +256,14 @@ def carregar_base_producao() -> pd.DataFrame:
                         if df_aba is not None:
                             df_aba = df_aba.copy()
                             df_aba["__origem__"] = nome_aba.title()
+                            if nome_aba == "gpon":
+                                col_contrato = Utilitarios.buscar_coluna(
+                                    df_aba, ["CONTRATO", "OS", "O.S."]
+                                )
+                                if col_contrato:
+                                    df_aba = df_aba.drop_duplicates(
+                                        subset=[col_contrato], keep="first"
+                                    )
                             frames.append(df_aba)
                     if frames:
                         return pd.concat(frames, ignore_index=True)
@@ -809,42 +817,44 @@ if df_raw.empty:
 
 def filtrar_tecnico(df: pd.DataFrame) -> pd.DataFrame:
     mask = pd.Series(False, index=df.index)
+    colunas_identidade = {
+        "LOGIN",
+        "MATRICULA",
+        "MATRÍCULA",
+        "RE",
+        "NETSALES",
+        "ID",
+        "CODIGO",
+        "CÓDIGO",
+        "USER",
+        "USUARIO",
+        "USUÁRIO",
+        "USERNAME",
+    }
+    colunas_nome = {
+        "TECNICO",
+        "TÉCNICO",
+        "VENDEDOR",
+        "NOME",
+        "NOME EQUIPE",
+        "NOME TÉCNICO",
+        "NOME_TECNICO",
+        "COLABORADOR",
+    }
+
     for col in df.columns:
         col_name = str(col).strip().upper()
         col_series = df[col].astype(str).str.strip().str.upper()
 
-        if any(
-            k in col_name
-            for k in [
-                "LOGIN",
-                "MATRICULA",
-                "MATRÍCULA",
-                "RE",
-                "NETSALES",
-                "ID",
-                "CODIGO",
-            ]
-        ):
+        if col_name in colunas_identidade:
             if login_logado:
                 mask |= col_series.eq(login_logado)
             if user_logado:
                 mask |= col_series.eq(user_logado)
 
-        if any(k in col_name for k in ["USER", "USUARIO", "USUÁRIO", "USERNAME"]):
-            if user_logado:
-                mask |= col_series.eq(user_logado)
-
-        if any(
-            k in col_name
-            for k in ["TECNICO", "TÉCNICO", "VENDEDOR", "NOME", "COLABORADOR"]
-        ):
+        if col_name in colunas_nome:
             if nome_logado:
                 mask |= col_series.eq(nome_logado)
-                partes = [p for p in nome_logado.split() if len(p) > 2]
-                if len(partes) >= 2:
-                    mask |= col_series.str.contains(
-                        partes[0], na=False, regex=False
-                    ) & col_series.str.contains(partes[-1], na=False, regex=False)
     return df[mask].copy()
 
 
