@@ -172,8 +172,7 @@ def render_sidebar_perfil() -> None:
 
     with st.sidebar:
         st.html(
-            textwrap.dedent(
-                f"""
+            textwrap.dedent(f"""
             <div style="background: linear-gradient(145deg, #F8FAFC 0%, #E2E8F0 100%);
                         border: 1px solid #CBD5E1; border-left: 4px solid #F97316;
                         border-radius: 12px; padding: 16px; margin: 16px;
@@ -206,8 +205,7 @@ def render_sidebar_perfil() -> None:
                     Online
                 </div>
             </div>
-                """
-            ),
+                """),
         )
         st.markdown('<div class="btn-logout">', unsafe_allow_html=True)
         if st.button("🚪 Encerrar Sessão", use_container_width=True):
@@ -217,9 +215,10 @@ def render_sidebar_perfil() -> None:
 
 
 # ====================================================
-# 5. CARREGAMENTO DA BASE PRODUÇÃO (GOOGLE SHEETS)
+# 5. CARREGAMENTO DAS BASES (GOOGLE SHEETS)
 # ====================================================
 SPREADSHEET_ID_PRODUCAO = "11Dp9WdZYUrT_LBvfo07Mi8muKXZykU7v"
+SPREADSHEET_ID_ATIVOS = "1LQKDcLshC6XSXLBVWaEYSpxrro6uydyU9pwDLc38pEg"
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -246,8 +245,7 @@ def carregar_base_producao() -> pd.DataFrame:
                 abas_alvo = {
                     str(nome).strip().lower(): df
                     for nome, df in abas.items()
-                    if str(nome).strip().lower() in ("prod", "gpon")
-                    and not df.empty
+                    if str(nome).strip().lower() in ("prod", "gpon") and not df.empty
                 }
                 if abas_alvo:
                     frames = []
@@ -291,8 +289,58 @@ def carregar_base_producao() -> pd.DataFrame:
     return pd.DataFrame()
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def carregar_base_ativos() -> pd.DataFrame:
+    """Carrega a planilha Lista Ativos."""
+    urls = [
+        f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID_ATIVOS}/export?format=xlsx",
+        f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID_ATIVOS}/export?format=csv",
+        f"https://drive.google.com/uc?export=download&id={SPREADSHEET_ID_ATIVOS}",
+    ]
+    for url in urls:
+        try:
+            resp = requests.get(url, timeout=30)
+        except requests.RequestException:
+            continue
+        if resp.status_code != 200 or len(resp.content) <= 100:
+            continue
+
+        content = resp.content
+        if url.endswith("format=xlsx"):
+            try:
+                abas = pd.read_excel(
+                    io.BytesIO(content), sheet_name=None, engine="openpyxl"
+                )
+                for _, df_aba in abas.items():
+                    if not df_aba.empty and df_aba.shape[1] > 1:
+                        return df_aba
+            except Exception:
+                pass
+
+        for csv_kwargs in (
+            {"sep": None, "engine": "python", "encoding": "utf-8"},
+            {"sep": ";", "encoding": "latin-1"},
+            {"sep": ",", "encoding": "utf-8"},
+        ):
+            csv_kwargs: Dict[str, Any] = dict(csv_kwargs)
+            try:
+                df = pd.read_csv(io.BytesIO(content), **csv_kwargs)
+                if not df.empty and df.shape[1] > 1:
+                    return df
+            except Exception:
+                continue
+
+        try:
+            df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
+            if not df.empty and df.shape[1] > 1:
+                return df
+        except Exception:
+            continue
+    return pd.DataFrame()
+
+
 # ====================================================
-# 6. UTILITÁRIOS (COM CÁLCULOS CORPORATIVOS INTEGRADOS)
+# 6. UTILITÁRIOS
 # ====================================================
 class Utilitarios:
     @staticmethod
@@ -311,7 +359,16 @@ class Utilitarios:
             ["Data Agendamento", "Data Conclusão", "Data", "Date", "Data_Execucao"],
         )
 
-    # ── Variação vs referência (ex: vs média da operação, vs meta) ──
+    @staticmethod
+    def normalizar_chave_string(series: pd.Series) -> pd.Series:
+        """Limpa floats (.0), tira espaços extras e coloca em caixa alta para dar match exato."""
+        return (
+            series.astype(str)
+            .str.strip()
+            .str.replace(r"\.0$", "", regex=True)
+            .str.upper()
+        )
+
     @staticmethod
     def calcular_variacao(vf: float, vg: float) -> tuple[str, str]:
         if vg == 0 or pd.isna(vg):
@@ -325,7 +382,6 @@ class Utilitarios:
             return "negativa", f"{Utilitarios.formatar_numero(p, 1)}%"
         return "neutra", "0%"
 
-    # ── Share do técnico no total da operação ──
     @staticmethod
     def calcular_share(vf: float, vg: float) -> tuple[str, str]:
         if vg == 0 or pd.isna(vg):
@@ -353,7 +409,6 @@ class Utilitarios:
         except (ValueError, TypeError):
             return str(valor)
 
-    # ── Régua de cores corporativa (mesma do Ranking) ──
     @staticmethod
     def colorir_metas(valor: Any) -> str:
         try:
@@ -377,14 +432,6 @@ class Utilitarios:
             )
         return "font-weight:700;border-left:3px solid #EF4444;text-align:center;"
 
-    @staticmethod
-    def colorir_projecao(valor: Any) -> str:
-        return (
-            "background-color:#0F172A;color:#FFFFFF;font-weight:800;"
-            "text-align:center;border-left:3px solid #64748B;"
-        )
-
-    # ── Dias úteis (SEM DOMINGOS — mesma régua do Ranking) ──
     @staticmethod
     def calcular_dias_uteis(
         df: pd.DataFrame, col_data: Optional[str] = None
@@ -417,7 +464,6 @@ class Utilitarios:
 
     @staticmethod
     def converter_data(series: pd.Series) -> pd.Series:
-        """Converte datas detectando formato ISO / BR / US automaticamente."""
         if pd.api.types.is_datetime64_any_dtype(series):
             return series
         s = series.astype(str).str.strip()
@@ -439,7 +485,6 @@ class Utilitarios:
 
     @staticmethod
     def normalizar_pontos(series: pd.Series) -> pd.Series:
-        """Converte números BR/US para float."""
         if series is None or series.empty:
             return pd.Series(dtype=float)
         if pd.api.types.is_numeric_dtype(series):
@@ -454,131 +499,53 @@ class Utilitarios:
         s = s.where(~has_comma | has_dot, s.str.replace(",", ".", regex=False))
         return pd.to_numeric(s, errors="coerce").fillna(0.0).astype(float)
 
-    @staticmethod
-    def formatar_dataframe_para_download(df: pd.DataFrame) -> bytes:
-        df_export = df.copy()
-        for col in df_export.select_dtypes(include=["float", "float64"]).columns:
-            df_export[col] = df_export[col].apply(
-                lambda x: (
-                    Utilitarios.formatar_numero(float(x), 2) if pd.notna(x) else "0,00"
-                )
-            )
-        return df_export.to_csv(index=False, sep=";", encoding="utf-8-sig").encode(
-            "utf-8-sig"
-        )
 
-    # ── Exportação Excel Premium (mesma do Ranking, multi-aba) ──
-    @staticmethod
-    def _excel_estilizar_aba(
-        ws: Any, df: pd.DataFrame, col_destaque: Optional[str]
-    ) -> None:
-        cor_cab = PatternFill("solid", fgColor="012869")
-        cor_par = PatternFill("solid", fgColor="F8FAFC")
-        cor_impar = PatternFill("solid", fgColor="FFFFFF")
-        cor_proj = PatternFill("solid", fgColor="303030")
-        cor_alta = PatternFill("solid", fgColor="1F497D")
-        cor_ok = PatternFill("solid", fgColor="C6EFCE")
-        cor_proximo = PatternFill("solid", fgColor="FFEB9C")
+# ====================================================
+# 7. FUNÇÃO DE MERGE PRODUÇÃO (CódAuxEquip) X ATIVOS (Login)
+# ====================================================
+def realizar_merge_producao_ativos(
+    df_prod: pd.DataFrame, df_ativos: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Realiza LEFT JOIN da Produção com a Lista Ativos:
+    Unindo CódAuxEquip (Produção) == Login (Lista Ativos).
+    """
+    if df_prod.empty or df_ativos.empty:
+        return df_prod
 
-        f_cab = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-        f_branca = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-        f_preta = Font(name="Calibri", size=11, bold=True, color="000000")
-        f_verde = Font(name="Calibri", size=11, bold=True, color="006100")
-        f_amarela = Font(name="Calibri", size=11, bold=True, color="9C5700")
+    # Procura CódAuxEquip na tabela de Produção
+    col_prod_key = Utilitarios.buscar_coluna(
+        df_prod,
+        [
+            "CódAuxEquipe",
+        ],
+    )
 
-        borda = Border(
-            left=Side(style="thin", color="D9D9D9"),
-            right=Side(style="thin", color="D9D9D9"),
-            top=Side(style="thin", color="D9D9D9"),
-            bottom=Side(style="thin", color="D9D9D9"),
-        )
-        centro = Alignment(horizontal="center", vertical="center")
+    # Procura Login na tabela Lista Ativos
+    col_ativos_key = Utilitarios.buscar_coluna(
+        df_ativos, ["Login", "LOGIN", "CodAuxEquipe", "RE", "MATRICULA"]
+    )
 
-        cols = list(df.columns)
-        if col_destaque is None:
-            for c in cols:
-                if str(c).strip().lower() in ("pontos", "projeção", "projecao"):
-                    col_destaque = str(c)
-                    break
+    if not col_prod_key or not col_ativos_key:
+        return df_prod
 
-        idx_proj = next(
-            (i + 1 for i, c in enumerate(cols) if "proje" in str(c).lower()), -1
-        )
-        idx_dest = cols.index(col_destaque) + 1 if col_destaque in cols else -1
+    df_p = df_prod.copy()
+    df_a = df_ativos.copy()
 
-        col_int = [
-            i + 1
-            for i, c in enumerate(cols)
-            if str(c).lower() in ("posição", "posicao", "meta", "os")
-        ]
-        col_dec = [
-            i + 1
-            for i, c in enumerate(cols)
-            if i + 1 not in col_int and pd.api.types.is_numeric_dtype(df[c])
-        ]
+    # Normalização das chaves (ex: "Z638189" == "Z638189")
+    df_p["__chave_merge__"] = Utilitarios.normalizar_chave_string(df_p[col_prod_key])
+    df_a["__chave_merge__"] = Utilitarios.normalizar_chave_string(df_a[col_ativos_key])
 
-        for row in ws.iter_rows(
-            min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column
-        ):
-            for cel in row:
-                cel.border = borda
-                if cel.row == 1:
-                    cel.fill = cor_cab
-                    cel.font = f_cab
-                    cel.alignment = centro
-                    continue
+    # Remove duplicados na base de ativos para evitar efeito multiplicador
+    df_a = df_a.drop_duplicates(subset=["__chave_merge__"], keep="first")
 
-                cel.fill = cor_par if cel.row % 2 == 0 else cor_impar
+    # Realiza o Merge mantendo todos os registros de produção
+    df_merged = df_p.merge(
+        df_a, on="__chave_merge__", how="left", suffixes=("", "_ativos")
+    )
+    df_merged = df_merged.drop(columns=["__chave_merge__"])
 
-                if cel.column == idx_proj:
-                    cel.fill = cor_proj
-                    cel.font = f_branca
-                elif cel.column == idx_dest:
-                    try:
-                        v = float(cel.value or 0)
-                        if v >= 400:
-                            cel.fill = cor_alta
-                            cel.font = f_branca
-                        elif v >= 300:
-                            cel.fill = cor_ok
-                            cel.font = f_verde
-                        elif v >= 275:
-                            cel.fill = cor_proximo
-                            cel.font = f_amarela
-                        else:
-                            cel.font = f_preta
-                    except (ValueError, TypeError):
-                        pass
-
-                if cel.column in col_int:
-                    cel.number_format = "#,##0"
-                elif cel.column in col_dec:
-                    cel.number_format = "#,##0.0"
-
-        for col in ws.columns:
-            letra = get_column_letter(col[0].column)
-            max_len = max(
-                (len(str(c.value)) for c in col if c.value is not None), default=0
-            )
-            ws.column_dimensions[letra].width = max(max_len + 3, 12)
-
-        ws.freeze_panes = "A2"
-        ws.auto_filter.ref = ws.dimensions
-
-    @staticmethod
-    def exportar_excel(
-        abas: Dict[str, pd.DataFrame], destaques: Optional[Dict[str, str]] = None
-    ) -> bytes:
-        destaques = destaques or {}
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            for nome, df in abas.items():
-                sheet = str(nome)[:31] or "Aba"
-                df.to_excel(writer, index=False, sheet_name=sheet)
-                Utilitarios._excel_estilizar_aba(
-                    writer.sheets[sheet], df, destaques.get(sheet)
-                )
-        return output.getvalue()
+    return df_merged
 
 
 class Graficos:
@@ -643,7 +610,7 @@ class Graficos:
 
 
 # ====================================================
-# 7. PROCESSAMENTO (ADAPTADO DO RANKING PARA O TÉCNICO)
+# 8. PROCESSAMENTO (METAS E CONTEXTO)
 # ====================================================
 METAS_MENSAIS = (300, 350, 375, 400)
 META_PRINCIPAL = 400
@@ -654,10 +621,6 @@ class ProcessamentoDados:
     def calcular_painel_metas(
         pontos_atuais: float, dias_restantes: int
     ) -> pd.DataFrame:
-        """
-        Adaptado de `calcular_rankings`: régua de metas 300/350/375/400.
-        Meta/dia = (Meta - Pontos) / dias úteis restantes (sem domingos).
-        """
         seguros = max(1, dias_restantes)
         linhas: List[Dict[str, Any]] = []
         for meta in METAS_MENSAIS:
@@ -693,10 +656,6 @@ class ProcessamentoDados:
         col_tec: Optional[str],
         identidade: Optional[str],
     ) -> tuple[float, int, Optional[int]]:
-        """
-        Totais globais + posição do técnico no ranking geral.
-        Retorna (pontos_globais, total_tecnicos, posicao_geral).
-        """
         pontos_globais = float(df_global[col_pontos].sum())
         if not col_tec or col_tec not in df_global.columns or not identidade:
             return pontos_globais, 0, None
@@ -775,7 +734,7 @@ def _criar_card_tooltip(
 
 
 # ====================================================
-# 8. INICIALIZAÇÃO DA INTERFACE
+# 9. INICIALIZAÇÃO DA INTERFACE & EXECUÇÃO DO MERGE
 # ====================================================
 aplicar_estilo()
 aplicar_tema_claro()
@@ -792,19 +751,21 @@ render_hero_totale_1(
     usar_material=True,
 )
 
-# ====================================================
-# 9. CARREGAMENTO E FILTRAGEM DOS DADOS
-# ====================================================
 loader = st.empty()
 loader.markdown(
     """<div class="loading-totale">
-        <span style="color:#012869; font-weight:700;">⚡ Sincronizando base de produção técnica...</span>
+        <span style="color:#012869; font-weight:700;">⚡ Sincronizando produção e lista de ativos...</span>
         <span style="color:#F37C04; font-weight:800; font-size:13px;">Aguarde</span>
     </div>""",
     unsafe_allow_html=True,
 )
 
-df_raw = carregar_base_producao()
+df_prod_raw = carregar_base_producao()
+df_ativos_raw = carregar_base_ativos()
+
+# 🔗 EXECUTA O MERGE: Produção (CódAuxEquip) ↔ Lista Ativos (Login)
+df_raw = realizar_merge_producao_ativos(df_prod_raw, df_ativos_raw)
+
 loader.empty()
 
 if df_raw.empty:
@@ -815,6 +776,9 @@ if df_raw.empty:
     st.stop()
 
 
+# ====================================================
+# 10. FILTRAGEM DO TÉCNICO LOGADO
+# ====================================================
 def filtrar_tecnico(df: pd.DataFrame) -> pd.DataFrame:
     mask = pd.Series(False, index=df.index)
     colunas_identidade = {
@@ -830,6 +794,9 @@ def filtrar_tecnico(df: pd.DataFrame) -> pd.DataFrame:
         "USUARIO",
         "USUÁRIO",
         "USERNAME",
+        "CODAUXEQUIP",
+        "CODAUXEQUIPE",
+        "COD_AUX_EQUIPE",
     }
     colunas_nome = {
         "TECNICO",
@@ -868,9 +835,8 @@ if df_prod.empty:
     )
     st.stop()
 
-# ── Identidade do técnico na base global (para ranking/share) ──
 col_tec_global = Utilitarios.buscar_coluna(
-    df_raw, ["TECNICO", "TÉCNICO", "NOME", "COLABORADOR"]
+    df_raw, ["TECNICO", "TÉCNICO", "NOME", "COLABORADOR", "NOME EQUIPE"]
 )
 identidade_tec: Optional[str] = None
 if col_tec_global and col_tec_global in df_prod.columns:
@@ -881,7 +847,6 @@ if col_tec_global and col_tec_global in df_prod.columns:
     except Exception:
         identidade_tec = None
 
-# Localiza colunas principais
 col_data = Utilitarios.buscar_coluna(
     df_prod, ["DATA", "DATA AGENDAMENTO", "DATA CONCLUSÃO", "DATA_EXECUCAO", "DATE"]
 )
@@ -889,7 +854,7 @@ if col_data:
     df_prod[col_data] = Utilitarios.converter_data(df_prod[col_data]).dt.date
 
 # ====================================================
-# 10. FILTROS DE PERÍODO
+# 11. FILTROS DE PERÍODO
 # ====================================================
 with st.container(border=True):
     render_section_header("🎯", "Filtro de Período")
@@ -967,7 +932,7 @@ if df_tec_prod.empty:
 st.divider()
 
 # ====================================================
-# 11. PROCESSAMENTO: PONTOS, DIAS ÚTEIS, METAS E CONTEXTO
+# 12. PROCESSAMENTO DE PONTOS, DIAS ÚTEIS E MÉTRICAS
 # ====================================================
 col_pontos = Utilitarios.buscar_coluna(
     df_tec_prod, ["PONTOS", "PONTO", "PTS", "PONTUACAO", "PREVIA"]
@@ -1011,7 +976,7 @@ elif col_pontos:
 t_os = len(df_tec_prod)
 t_pontos = pontos_prod + pontos_gpon
 
-# ── Dias úteis via np.busday_count (régua idêntica ao Ranking) ──
+# Dias úteis sem domingos
 dias_brutos, dias_seguros, data_ref, dias_passados = Utilitarios.calcular_dias_uteis(
     df_tec_prod, col_data=col_data
 )
@@ -1025,7 +990,6 @@ if (
     datas_validas = pd.to_datetime(df_tec_prod[col_data]).dropna()
     dias_com_os = max(datas_validas.dt.normalize().nunique(), 1)
 
-# ── Projeção = Pontos + (média/dia × dias úteis restantes) ──
 media_diaria = t_pontos / dias_com_os
 t_projecao = t_pontos + (media_diaria * dias_brutos)
 
@@ -1038,7 +1002,6 @@ tip_proj = (
 
 media_pontos = t_pontos / t_os if t_os > 0 else 0.0
 
-# ── Contexto geral (Share, Posição, Variação) via base completa ──
 pontos_globais = 0.0
 t_os_global = 0
 posicao_geral: Optional[int] = None
@@ -1056,12 +1019,10 @@ if col_pontos and col_pontos in df_raw.columns:
     )
 
 classe_share, txt_share = Utilitarios.calcular_share(t_pontos, pontos_globais)
-
 media_os_geral = pontos_globais / t_os_global if t_os_global > 0 else 0.0
 classe_var, txt_var = Utilitarios.calcular_variacao(media_pontos, media_os_geral)
 icone_var = {"positiva": "⬆️", "negativa": "⬇️"}.get(classe_var, "➖")
 
-# ── Painel de Metas (300 / 350 / 375 / 400) ──
 df_metas = ProcessamentoDados.calcular_painel_metas(t_pontos, dias_brutos)
 meta_dia_principal = (
     float(
@@ -1074,7 +1035,7 @@ meta_dia_principal = (
 )
 
 # ====================================================
-# 12. DASHBOARD OPERACIONAL & CARDS
+# 13. DASHBOARD OPERACIONAL & CARDS
 # ====================================================
 render_section_header("⚙️", "Resumo de Execução Física")
 kr1, kr2, kr3, kr4 = st.columns(4)
@@ -1193,7 +1154,7 @@ with kr8:
 st.write("---")
 
 # ====================================================
-# 13. PAINEL DE METAS (RÉGUA CORPORATIVA 300/350/375/400)
+# 14. PAINEL DE METAS
 # ====================================================
 render_section_header("🏆", "Painel de Metas Mensais")
 
@@ -1236,8 +1197,7 @@ if not df_metas.empty and col_pontos:
         },
     )
     st.caption(
-        "🎨 **Régua de cores** (Pontos/Dia Necessário): 🟦 ≥ 400 · 🟩 ≥ 300 · 🟨 ≥ 275 · 🟥 < 275 — "
-        "mesma régua aplicada no Ranking Geral."
+        "🎨 **Régua de cores** (Pontos/Dia Necessário): 🟦 ≥ 400 · 🟩 ≥ 300 · 🟨 ≥ 275 · 🟥 < 275"
     )
 else:
     st.info("💡 Coluna de pontos não identificada — Painel de Metas indisponível.")
@@ -1245,7 +1205,7 @@ else:
 st.write("---")
 
 # ====================================================
-# 14. GRÁFICO TEMPORAL (COM LINHA DE META/DIA)
+# 15. EVOLUÇÃO TEMPORAL
 # ====================================================
 if col_data and col_data in df_tec_prod.columns and col_pontos:
     render_section_header("📊", "Evolução Diária vs Meta")
