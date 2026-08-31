@@ -1007,6 +1007,23 @@ t_os_global = 0
 posicao_geral: Optional[int] = None
 total_tecnicos = 0
 
+# 🆕 Detecta a coluna de Projeto na base
+col_projeto = Utilitarios.buscar_coluna(
+    df_raw, ["PROJETO", "CAMPANHA", "OPERAÇÃO", "OPERACAO", "CONTRATO_PROJETO"]
+)
+
+# 🆕 Descobre o projeto do técnico logado
+projeto_tecnico: Optional[str] = None
+if col_projeto and col_projeto in df_tec_prod.columns:
+    try:
+        moda_proj = df_tec_prod[col_projeto].dropna().astype(str).str.strip().mode()
+        if not moda_proj.empty:
+            projeto_tecnico = str(moda_proj.iloc[0])
+    except Exception:
+        projeto_tecnico = None
+
+pontos_projeto = 0.0  # 🆕 Total de pontos do projeto do técnico
+
 if col_pontos and col_pontos in df_raw.columns:
     df_global = df_raw.copy()
     df_global[col_pontos] = Utilitarios.normalizar_pontos(df_global[col_pontos])
@@ -1018,7 +1035,16 @@ if col_pontos and col_pontos in df_raw.columns:
         )
     )
 
-classe_share, txt_share = Utilitarios.calcular_share(t_pontos, pontos_globais)
+    # 🆕 Filtra apenas os pontos do projeto do técnico
+    if col_projeto and projeto_tecnico and col_projeto in df_global.columns:
+        proj_series = df_global[col_projeto].astype(str).str.strip().str.upper()
+        mask_proj = proj_series == projeto_tecnico.strip().upper()
+        pontos_projeto = float(df_global.loc[mask_proj, col_pontos].sum())
+    else:
+        pontos_projeto = pontos_globais  # fallback: usa geral se não achar projeto
+
+# 🔁 ALTERADO: Share agora é calculado sobre o PROJETO, não sobre o geral
+classe_share, txt_share = Utilitarios.calcular_share(t_pontos, pontos_projeto)
 media_os_geral = pontos_globais / t_os_global if t_os_global > 0 else 0.0
 classe_var, txt_var = Utilitarios.calcular_variacao(media_pontos, media_os_geral)
 icone_var = {"positiva": "⬆️", "negativa": "⬇️"}.get(classe_var, "➖")
@@ -1091,38 +1117,32 @@ with kr4:
 
 st.write("")
 
-kr5, kr6, kr7, kr8 = st.columns(4)
+st.write("")
 
-with kr5:
-    pos_txt = (
-        f"{Utilitarios.formatar_posicao(posicao_geral)} de {total_tecnicos}"
-        if posicao_geral
-        else "—"
-    )
-    st.markdown(
-        _criar_card_tooltip(
-            "Posição no Ranking",
-            pos_txt,
-            "laranja",
-            (
-                f"Entre {total_tecnicos} técnicos"
-                if total_tecnicos
-                else "Sem base comparativa"
-            ),
-            "🏅",
-            "Posição no ranking geral de pontos do mês",
-        ),
-        unsafe_allow_html=True,
-    )
+# 🔁 ALTERADO: Removido card "Posição no Ranking" — agora são 3 cards
+kr6, kr7, kr8 = st.columns(3)
+
 with kr6:
+    # 🔁 Subtítulo dinâmico com o nome do projeto
+    sub_share = (
+        f"Participação no projeto {projeto_tecnico}"
+        if projeto_tecnico
+        else "Participação no total"
+    )
+    tip_share = (
+        f"Seus pontos ÷ pontos totais do projeto <b>{projeto_tecnico}</b>. "
+        f"Total do projeto: {Utilitarios.formatar_numero(pontos_projeto, 2)} pts."
+        if projeto_tecnico
+        else "Seus pontos ÷ pontos totais da operação"
+    )
     st.markdown(
         _criar_card_tooltip(
             "Share de Pontos",
             txt_share,
             "azul",
-            "Participação no total",
+            sub_share,
             "🧩",
-            "Seus pontos ÷ pontos totais da operação",
+            tip_share,
         ),
         unsafe_allow_html=True,
     )
