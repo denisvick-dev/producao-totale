@@ -202,15 +202,40 @@ def injetar_css_admin() -> None:
             display: flex; align-items: center; justify-content: space-between;
         }
 
-        /* ── Tabs customizadas ── */
-        .stTabs [data-baseweb="tab-list"] { gap: 4px; }
+        /* ── Tabs customizadas (Melhoria Visual) ── */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: transparent;
+            padding-bottom: 2px;
+            border-bottom: 2px solid #E2E8F0;
+        }
         .stTabs [data-baseweb="tab"] {
-            background: #F1F5F9; border-radius: 8px 8px 0 0;
-            padding: 10px 20px; font-weight: 700; color: #475569;
+            background-color: #F8FAFC !important;
+            border: 1px solid #E2E8F0 !important;
+            border-bottom: none !important;
+            border-radius: 8px 8px 0 0 !important;
+            padding: 12px 24px !important;
+            font-weight: 700 !important;
+            color: #64748B !important;
+            transition: all 0.3s ease-in-out !important;
         }
+        .stTabs [data-baseweb="tab"]:hover {
+            background-color: #E2E8F0 !important;
+            color: #0F172A !important;
+        }
+        /* Aba Ativa */
         .stTabs [aria-selected="true"] {
-            background: #012869 !important; color: #FFFFFF !important;
+            background: linear-gradient(90deg, #012869 0%, #1E3A8A 100%) !important;
+            color: #FFFFFF !important;
+            border: 1px solid #012869 !important;
+            border-bottom: none !important;
+            box-shadow: 0 -4px 10px rgba(1, 40, 105, 0.2) !important;
         }
+        /* Oculta a linha de seleção padrão (laranja/azul) do Streamlit */
+        .stTabs [data-baseweb="tab-highlight"] {
+            display: none !important;
+        }
+        
         </style>
         """,
         unsafe_allow_html=True,
@@ -720,7 +745,7 @@ render_sidebar_admin()
 
 render_hero_totale_1(
     titulo="Painel Administrativo",
-    subtitulo="Visão consolidada de produção, rankings e performance de toda a operação",
+    subtitulo="Visão consolidada de produção e performance de toda a operação",
     icone="shield",
     badge="Área Restrita",
     usar_material=True,
@@ -986,13 +1011,13 @@ st.write("---")
 # ====================================================
 # 13. TABS PRINCIPAIS
 # ====================================================
-tab_ranking, tab_equipes, tab_graficos, tab_logins = st.tabs(
-    ["🏆 Ranking Geral", "👥 Por Equipe", "📈 Gráficos", "🔐 Logins"]
+tab_visao_geral, tab_equipes, tab_graficos, tab_consultivo, tab_logins = st.tabs(
+    ["🏆 Visão Geral", "👥 Por Equipe", "📈 Gráficos", "💼 Consultivo", "🔐 Logins"]
 )
 
 # ── TAB 1: RANKING GERAL ──
-with tab_ranking:
-    render_section_header("🏆", "Ranking de Técnicos — Produção Consolidada")
+with tab_visao_geral:
+    render_section_header("🏆", "Produção Consolidada por Técnico")
 
     df_ranking = ProcessamentoAdmin.construir_ranking(
         df_filtered,
@@ -1210,8 +1235,12 @@ with tab_graficos:
         st.plotly_chart(
             fig_hist, use_container_width=True, config={"displayModeBar": False}
         )
+        
+# ── TAB 4: CONSULTIVO ──
+with tab_consultivo:
+    render_section_header("💼", "Consultivo")
 
-# ── TAB 4: CRUD DE LOGINS ──
+# ── TAB 5: CRUD DE LOGINS ──
 with tab_logins:
     render_section_header("🔐", "Gerenciamento de Logins")
 

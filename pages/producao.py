@@ -744,7 +744,7 @@ render_sidebar_perfil()
 nome_exibicao = nome_logado.title() if nome_logado else (user_logado or login_logado)
 
 render_hero_totale_1(
-    titulo="Central de Produção Técnica",
+    titulo="Prévia de Produtividade",
     subtitulo=f"Auditoria de O.S., Pontos e Metas para o técnico(a) {nome_exibicao.upper()}",
     icone="bar_chart",
     badge="Painel do Técnico",

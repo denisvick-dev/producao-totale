@@ -1,4 +1,5 @@
 # streamlit_app.py
+import time
 import streamlit as st
 import pandas as pd
 from utils._auth import AuthManager
@@ -63,6 +64,8 @@ def injetar_css_login():
         section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] span { color: #1C1C1E !important; }
         section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 { color: #012869 !important; font-weight: 800 !important; }
         section[data-testid="stSidebar"] hr { border: none !important; height: 1px !important; background: linear-gradient(90deg, transparent, rgba(1,40,105,0.18), rgba(243,124,4,0.55), rgba(1,40,105,0.18), transparent) !important; }
+        
+        /* Oculta navegação e injeta visual no menu lateral */
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li { margin: 4px 10px !important; }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child { display: none !important; }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a { background: linear-gradient(135deg, rgba(255,255,255,0.85), rgba(240,240,245,0.95)) !important; border: 1px solid rgba(1,40,105,0.12) !important; border-radius: 12px !important; padding: 11px 14px !important; box-shadow: 0 2px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.95) !important; }
@@ -70,6 +73,7 @@ def injetar_css_login():
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover { border-color: rgba(243,124,4,0.45) !important; border-left: 3px solid #F37C04 !important; transform: translateX(2px); }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"], section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] { background: linear-gradient(90deg, #FFF8F0 0%, #FFE9D0 55%, #FADBB9 100%) !important; border: 1px solid rgba(243,124,4,0.45) !important; border-left: 4px solid #F37C04 !important; }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] span, section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] span { color: #012869 !important; font-weight: 800 !important; }
+        
         [data-testid="stSidebarNav"] a[href*="producao"] span { font-size: 0 !important; }
         [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produção" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
         [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
@@ -161,7 +165,7 @@ def render_tabela_consulta():
     if not df_users.empty:
         search = st.text_input(
             "🔍 Localize seu cadastro:",
-            placeholder="Digite seu nome, login Z ou user...",
+            placeholder="Digite seu nome ou login Z...",
             key="search_table",
         )
         df_display = df_users.copy()
@@ -174,13 +178,14 @@ def render_tabela_consulta():
                 | df_display["Login"]
                 .astype(str)
                 .str.contains(search, case=False, na=False)
-                | df_display["User"]
-                .astype(str)
-                .str.contains(search, case=False, na=False)
             ]
 
-        if "Pass" in df_display.columns:
-            df_display = df_display.drop(columns=["Pass"])
+        # Oculta Pass e User (User geralmente é perfil de adm/gestão, não precisa ficar exposto)
+        colunas_para_remover = [
+            col for col in ["Pass", "User"] if col in df_display.columns
+        ]
+        if colunas_para_remover:
+            df_display = df_display.drop(columns=colunas_para_remover)
 
         st.dataframe(df_display, use_container_width=True, hide_index=True, height=290)
     else:
@@ -191,8 +196,9 @@ def render_tabela_consulta():
 # TELA 1: LOGIN
 # ====================================================
 def tela_login() -> None:
+    # Ajuste nas proporções para melhorar em telas menores
     col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns(
-        [0.3, 2.2, 3.4, 0.3], gap="large"
+        [0.1, 2.5, 3.5, 0.1], gap="large"
     )
 
     with col_form:
@@ -224,7 +230,7 @@ def tela_login() -> None:
                         st.error(f"❌ {message}")
 
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Esqueceu ou deseja alterar a senha?", use_container_width=True):
+        if st.button("Deseja alterar sua senha?", use_container_width=True):
             st.session_state["auth_view"] = "trocar_senha"
             st.rerun()
 
@@ -237,7 +243,7 @@ def tela_login() -> None:
 # ====================================================
 def tela_trocar_senha() -> None:
     col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns(
-        [0.3, 2.2, 3.4, 0.3], gap="large"
+        [0.1, 2.5, 3.5, 0.1], gap="large"
     )
 
     with col_form:
@@ -247,41 +253,60 @@ def tela_trocar_senha() -> None:
                 unsafe_allow_html=True,
             )
             st.markdown(
-                "<p style='color:#64748B;font-size:13px;margin-bottom:1.2rem;'>Defina uma nova senha para o seu acesso.</p>",
+                "<p style='color:#64748B;font-size:13px;margin-bottom:1.2rem;'>É necessário informar a senha atual para criar uma nova.</p>",
                 unsafe_allow_html=True,
             )
 
-            identifier = st.text_input(
-                "Seu Login ou User", placeholder="Ex: Z659935 ou DENIS.ADMIN"
+            identifier = st.text_input("Seu Login ou User", placeholder="Ex: Z659935")
+            old_pass = st.text_input(
+                "Senha Atual", type="password", placeholder="Digite sua senha atual"
             )
             new_pass = st.text_input(
                 "Nova Senha", type="password", placeholder="Mínimo 6 caracteres"
             )
             confirm_pass = st.text_input(
-                "Confirme a Senha", type="password", placeholder="Repita a nova senha"
+                "Confirme a Nova Senha",
+                type="password",
+                placeholder="Repita a nova senha",
             )
             submit = st.form_submit_button(
                 "SALVAR NOVA SENHA", use_container_width=True
             )
 
             if submit:
-                if not identifier or not new_pass or not confirm_pass:
+                if not identifier or not old_pass or not new_pass or not confirm_pass:
                     st.error("⚠️ Preencha todos os campos!")
                 elif new_pass != confirm_pass:
-                    st.error("⚠️ As senhas não coincidem!")
+                    st.error("⚠️ As novas senhas não coincidem!")
                 elif len(new_pass) < 6:
-                    st.error("⚠️ A senha deve ter pelo menos 6 caracteres!")
+                    st.error("⚠️ A nova senha deve ter pelo menos 6 caracteres!")
                 else:
-                    with st.spinner("Atualizando senha..."):
+                    # Passo 1: Autenticar a senha antiga primeiro (GARANTIA DE SEGURANÇA)
+                    with st.spinner("Validando dados..."):
+                        is_valid_user, auth_message = auth.login(identifier, old_pass)
+
+                    if not is_valid_user:
+                        st.error("❌ A senha atual informada está incorreta.")
+                    else:
+                        # Passo 2: Se passou na validação, atualiza a senha
                         success, message = auth.update_password(identifier, new_pass)
 
-                    if success:
-                        st.success("✅ Senha alterada! Faça o login.")
-                        st.session_state["auth_view"] = "login"
-                    else:
-                        st.error(f"❌ {message}")
+                        if success:
+                            st.success(
+                                "✅ Senha alterada com sucesso! Redirecionando..."
+                            )
+                            time.sleep(
+                                1.5
+                            )  # Aguarda 1.5s para o usuário ler a mensagem
+                            st.session_state["auth_view"] = "login"
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Erro ao alterar senha: {message}")
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(
+            "<p style='text-align:center;font-size:12px;color:#94A3B8;margin-top:10px;'>Esqueceu sua senha? Solicite o reset ao seu supervisor.</p>",
+            unsafe_allow_html=True,
+        )
         if st.button("← Voltar para o Login", use_container_width=True):
             st.session_state["auth_view"] = "login"
             st.rerun()
