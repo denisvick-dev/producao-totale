@@ -80,6 +80,9 @@ def injetar_css_menu_sidebar():
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="producao"]) { order: 1 !important; }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="consultivo"]) { order: 2 !important; }
         
+        /* Oculta o botão Admin para técnicos */
+        [data-testid="stSidebarNav"] a[href*="admin"] { display: none !important; }
+        
         /* Renomeia Itens do Menu */
         [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
         [data-testid="stSidebarNav"] a[href*="consultivo"] span::before { content: "🗣️ Consultivo" !important; font-size: 14px !important; font-weight: 700 !important; color: #1E293B !important; }

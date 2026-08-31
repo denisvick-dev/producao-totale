@@ -74,6 +74,20 @@ def injetar_css_login():
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"], section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] { background: linear-gradient(90deg, #FFF8F0 0%, #FFE9D0 55%, #FADBB9 100%) !important; border: 1px solid rgba(243,124,4,0.45) !important; border-left: 4px solid #F37C04 !important; }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] span, section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] span { color: #012869 !important; font-weight: 800 !important; }
         
+        /* ====================================================
+        LOGIN — OCULTA TODOS OS BOTÕES/NAVEGAÇÃO DA SIDEBAR
+        ==================================================== */
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+        
         [data-testid="stSidebarNav"] a[href*="producao"] span { font-size: 0 !important; }
         [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produtividade" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
         [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }

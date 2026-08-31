@@ -81,6 +81,10 @@ def injetar_css_menu_sidebar() -> None:
             display: flex !important;
             flex-direction: column !important;
         }
+        
+        /* Oculta o botão Admin para técnicos */
+        [data-testid="stSidebarNav"] a[href*="admin"] { display: none !important; }
+
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="producao"]) { order: 1 !important; }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="consultivo"]) { order: 2 !important; }
 
