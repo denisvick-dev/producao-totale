@@ -1,7 +1,7 @@
 # streamlit_app.py
 import time
-import streamlit as st
 import pandas as pd
+import streamlit as st
 from utils._auth import AuthManager
 from utils._database import get_db
 
@@ -38,6 +38,21 @@ auth = AuthManager()
 
 
 # ====================================================
+# ⚡ CACHE DOS USUÁRIOS (EVITA ERRO DE QUOTA 429)
+# ====================================================
+@st.cache_data(ttl=300, show_spinner=False)
+def carregar_usuarios_cached() -> pd.DataFrame:
+    """Carrega os usuários com cache de 5 minutos (300s) para não estourar a cota da API do Google Sheets."""
+    try:
+        db = get_db()
+        df = db.get_users_dataframe()
+        return df if df is not None else pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erro na base de usuários: {e}")
+        return pd.DataFrame()
+
+
+# ====================================================
 # CSS — LOGIN + SIDEBAR PRATA/CINZA METÁLICO TOTALE
 # ====================================================
 def injetar_css_login():
@@ -64,35 +79,6 @@ def injetar_css_login():
         section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] span { color: #1C1C1E !important; }
         section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 { color: #012869 !important; font-weight: 800 !important; }
         section[data-testid="stSidebar"] hr { border: none !important; height: 1px !important; background: linear-gradient(90deg, transparent, rgba(1,40,105,0.18), rgba(243,124,4,0.55), rgba(1,40,105,0.18), transparent) !important; }
-        
-        /* Oculta navegação e injeta visual no menu lateral */
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li { margin: 4px 10px !important; }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child { display: none !important; }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a { background: linear-gradient(135deg, rgba(255,255,255,0.85), rgba(240,240,245,0.95)) !important; border: 1px solid rgba(1,40,105,0.12) !important; border-radius: 12px !important; padding: 11px 14px !important; box-shadow: 0 2px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.95) !important; }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a span { color: #3A3A3C !important; font-weight: 700 !important; }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover { border-color: rgba(243,124,4,0.45) !important; border-left: 3px solid #F37C04 !important; transform: translateX(2px); }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"], section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] { background: linear-gradient(90deg, #FFF8F0 0%, #FFE9D0 55%, #FADBB9 100%) !important; border: 1px solid rgba(243,124,4,0.45) !important; border-left: 4px solid #F37C04 !important; }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] span, section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] span { color: #012869 !important; font-weight: 800 !important; }
-        
-        /* ====================================================
-        LOGIN — OCULTA TODOS OS BOTÕES/NAVEGAÇÃO DA SIDEBAR
-        ==================================================== */
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
-            display: none !important;
-            visibility: hidden !important;
-            height: 0 !important;
-            min-height: 0 !important;
-            max-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-        }
-        
-        [data-testid="stSidebarNav"] a[href*="producao"] span { font-size: 0 !important; }
-        [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produtividade" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
-        [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
-        [data-testid="stSidebarNav"] a[href*="consultivo"] span::before { content: "🗣️ Consultivo" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
-        [data-testid="stSidebarNav"] a[href*="admin"] { display: none !important; }
         
         .sidebar-login-brand { background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(232,232,237,0.95)); border: 1px solid rgba(1,40,105,0.12); border-left: 4px solid #F37C04; border-radius: 14px; padding: 18px 16px; margin: 8px 0 12px 0; box-shadow: 0 8px 20px rgba(1,40,105,0.08), inset 0 1px 0 rgba(255,255,255,0.95); }
         .sidebar-login-brand .brand { font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #F37C04; margin-bottom: 8px; }
@@ -122,13 +108,20 @@ def injetar_css_login():
         [data-testid="stMain"] div:not([data-testid="stForm"]) [data-baseweb="input"]:focus-within { border-color: #012869 !important; box-shadow: 0 0 0 3px rgba(1,40,105,0.15) !important; }
         .tabela-info { background: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #012869; padding: 1rem 1.2rem; border-radius: 8px; margin-bottom: 1.2rem; }
         
-        /* Botão Secundário (Fora do Form) */
+        /* Botão Secundário */
         button[kind="secondary"] {
             color: #64748B !important; font-weight: 600 !important; background: transparent !important;
             border: 1px solid #CBD5E1 !important; border-radius: 8px !important; padding: 0.5rem !important;
             transition: all 0.2s ease;
         }
         button[kind="secondary"]:hover { color: #F37C04 !important; border-color: #F37C04 !important; background: #FFF8F0 !important;}
+
+        /* OCULTA TODOS OS BOTÕES DE NAVEGAÇÃO NA TELA DE LOGIN */
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -160,7 +153,7 @@ def render_sidebar_login() -> None:
 
 
 # ====================================================
-# COMPONENTE: TABELA DE PESQUISA (REUTILIZÁVEL)
+# COMPONENTE: TABELA DE PESQUISA (USA CACHE AGORA)
 # ====================================================
 def render_tabela_consulta():
     st.markdown(
@@ -173,8 +166,8 @@ def render_tabela_consulta():
         unsafe_allow_html=True,
     )
 
-    db = get_db()
-    df_users = db.get_users_dataframe()
+    # ⚡ USANDO A FUNÇÃO COM CACHE
+    df_users = carregar_usuarios_cached()
 
     if not df_users.empty:
         search = st.text_input(
@@ -194,7 +187,6 @@ def render_tabela_consulta():
                 .str.contains(search, case=False, na=False)
             ]
 
-        # Oculta Pass e User (User geralmente é perfil de adm/gestão, não precisa ficar exposto)
         colunas_para_remover = [
             col for col in ["Pass", "User"] if col in df_display.columns
         ]
@@ -203,14 +195,13 @@ def render_tabela_consulta():
 
         st.dataframe(df_display, use_container_width=True, hide_index=True, height=290)
     else:
-        st.warning("Falha ao carregar a base de técnicos.")
+        st.warning("Aguarde um momento ou tente recarregar a página.")
 
 
 # ====================================================
 # TELA 1: LOGIN
 # ====================================================
 def tela_login() -> None:
-    # Ajuste nas proporções para melhorar em telas menores
     col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns(
         [0.1, 2.5, 3.5, 0.1], gap="large"
     )
@@ -295,23 +286,21 @@ def tela_trocar_senha() -> None:
                 elif len(new_pass) < 6:
                     st.error("⚠️ A nova senha deve ter pelo menos 6 caracteres!")
                 else:
-                    # Passo 1: Autenticar a senha antiga primeiro (GARANTIA DE SEGURANÇA)
                     with st.spinner("Validando dados..."):
                         is_valid_user, auth_message = auth.login(identifier, old_pass)
 
                     if not is_valid_user:
                         st.error("❌ A senha atual informada está incorreta.")
                     else:
-                        # Passo 2: Se passou na validação, atualiza a senha
                         success, message = auth.update_password(identifier, new_pass)
 
                         if success:
+                            # ⚡ Limpa o cache ao atualizar a senha
+                            carregar_usuarios_cached.clear()
                             st.success(
                                 "✅ Senha alterada com sucesso! Redirecionando..."
                             )
-                            time.sleep(
-                                1.5
-                            )  # Aguarda 1.5s para o usuário ler a mensagem
+                            time.sleep(1.5)
                             st.session_state["auth_view"] = "login"
                             st.rerun()
                         else:
