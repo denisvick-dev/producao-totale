@@ -75,7 +75,7 @@ def injetar_css_login():
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] span, section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] span { color: #012869 !important; font-weight: 800 !important; }
         
         [data-testid="stSidebarNav"] a[href*="producao"] span { font-size: 0 !important; }
-        [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produção" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
+        [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produtividade" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
         [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
         [data-testid="stSidebarNav"] a[href*="consultivo"] span::before { content: "🗣️ Consultivo" !important; font-size: 14px !important; font-weight: 700 !important; color: #012869 !important; }
         [data-testid="stSidebarNav"] a[href*="admin"] { display: none !important; }

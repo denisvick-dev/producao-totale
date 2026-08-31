@@ -85,7 +85,7 @@ def injetar_css_menu_sidebar():
         [data-testid="stSidebarNav"] a[href*="consultivo"] span::before { content: "🗣️ Consultivo" !important; font-size: 14px !important; font-weight: 700 !important; color: #1E293B !important; }
         
         [data-testid="stSidebarNav"] a[href*="producao"] span { font-size: 0 !important; }
-        [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produção" !important; font-size: 14px !important; font-weight: 700 !important; color: #1E293B !important; }
+        [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produtividade" !important; font-size: 14px !important; font-weight: 700 !important; color: #1E293B !important; }
 
         /* Estilo dos Botões do Menu */
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
@@ -496,7 +496,7 @@ aplicar_tema_claro()
 injetar_css_menu_nomes(
     {
         "consultivo": "🗣️ Consultivo",
-        "producao": "📊 Produção",
+        "producao": "📊 Produtividade",
     }
 )
 
