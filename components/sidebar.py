@@ -1,9 +1,21 @@
 # components/sidebar.py
+"""
+Módulo de Sidebar corporativo TOTALE para producao-totale.
+
+Uso:
+    from components.sidebar import injetar_css_sidebar_corp, render_sidebar_corp
+    injetar_css_sidebar_corp()
+    render_sidebar_corp(on_logout=lambda: st.session_state.clear())
+"""
+
 import streamlit as st
 from typing import Optional, Callable
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 TOTALE_AZUL = "#012869"
 TOTALE_LARANJA = "#F37C04"
+FUSO_HORARIO = ZoneInfo("America/Sao_Paulo")
 
 
 def injetar_css_sidebar_corp() -> None:
@@ -421,3 +433,204 @@ def render_sidebar_corp(
             '<div class="sidebar-footer">POWERED BY <b>TOTALE</b></div>',
             unsafe_allow_html=True,
         )
+
+
+# ====================================================
+# 🧩 FUNÇÕES HELPER ADICIONAIS
+# ====================================================
+
+def render_sidebar_info(
+    user_name: str = "Usuário",
+    email: Optional[str] = None,
+    role: Optional[str] = None,
+    avatar: Optional[str] = None,
+) -> None:
+    """
+    Renderiza bloco de informações do usuário logado no topo do sidebar.
+
+    Args:
+        user_name: Nome do usuário
+        email: Email do usuário (opcional)
+        role: Cargo/Role do usuário (opcional)
+        avatar: URL ou emoji do avatar (opcional)
+    """
+    avatar_text = avatar or "👤"
+    role_text = f" • {role}" if role else ""
+
+    st.markdown(
+        f"""
+        <div style="
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(1, 40, 105, 0.25);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            text-align: center;
+        ">
+            <div style="font-size: 28px; margin-bottom: 6px;">{avatar_text}</div>
+            <p style="
+                color: #1C1C1E;
+                font-weight: 700;
+                font-size: 13px;
+                margin: 0 0 4px 0;
+            ">{user_name}</p>
+            {f'<p style="color: {TOTALE_LARANJA}; font-size: 11px; margin: 2px 0;">{role_text.strip(" • ")}</p>' if role else ''}
+            {f'<p style="color: #636366; font-size: 11px; margin: 4px 0 0 0; word-break: break-word;">{email}</p>' if email else ''}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_sidebar_status(
+    sistema_ok: bool = True,
+    ultima_atualizacao: Optional[datetime] = None,
+    mensagem: str = "Sistema operacional",
+) -> None:
+    """
+    Renderiza indicador de status do sistema no sidebar.
+
+    Args:
+        sistema_ok: Status do sistema (True=OK, False=erro)
+        ultima_atualizacao: Datetime da última atualização
+        mensagem: Mensagem customizada
+    """
+    cor_fundo = "rgba(34, 197, 94, 0.1)" if sistema_ok else "rgba(220, 38, 38, 0.1)"
+    cor_borda = "#059669" if sistema_ok else "#DC2626"
+    icone = "✅" if sistema_ok else "❌"
+
+    if ultima_atualizacao:
+        tempo = ultima_atualizacao.strftime("%d/%m/%Y %H:%M")
+        submsg = f"<p style='font-size: 11px; margin: 4px 0 0 0; color: #636366;'>🕒 {tempo}</p>"
+    else:
+        submsg = ""
+
+    st.markdown(
+        f"""
+        <div style="
+            background: {cor_fundo};
+            border: 1px solid {cor_borda};
+            border-radius: 6px;
+            padding: 10px;
+            margin: 12px 0;
+            text-align: center;
+        ">
+            <p style="
+                font-size: 13px;
+                font-weight: 600;
+                margin: 0;
+                color: #1C1C1E;
+            ">
+                {icone} {mensagem}
+            </p>
+            {submsg}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_sidebar_filtro(
+    label: str,
+    options: list,
+    default: Optional[str] = None,
+    key: Optional[str] = None,
+    help_text: Optional[str] = None,
+    multi: bool = False,
+):
+    """
+    Renderiza filtro customizado no sidebar com styling corporativo.
+
+    Args:
+        label: Rótulo do filtro
+        options: Lista de opções
+        default: Valor padrão
+        key: Chave de session_state
+        help_text: Texto de ajuda
+        multi: Permitir múltiplas seleções
+
+    Returns:
+        Valor(es) selecionado(s)
+    """
+    if multi:
+        return st.multiselect(
+            label,
+            options=options,
+            default=default,
+            key=key,
+            help=help_text,
+        )
+    else:
+        return st.selectbox(
+            label,
+            options=options,
+            index=options.index(default) if default and default in options else 0,
+            key=key,
+            help=help_text,
+        )
+
+
+def render_sidebar_section(title: str) -> None:
+    """Renderiza um título de seção no sidebar."""
+    st.markdown(f"#### {title}", unsafe_allow_html=False)
+
+
+def render_sidebar_divider() -> None:
+    """Renderiza divisor visual no sidebar."""
+    st.divider()
+
+
+def render_sidebar_footer_info(
+    versao: str = "1.0.0",
+    ambiente: str = "Produção",
+    mostrar_timestamp: bool = True,
+) -> None:
+    """
+    Renderiza bloco de informações footer no sidebar.
+
+    Args:
+        versao: Versão do sistema
+        ambiente: Ambiente (Produção, Staging, Dev)
+        mostrar_timestamp: Mostrar timestamp atual
+    """
+    agora = datetime.now(FUSO_HORARIO)
+    hora_str = agora.strftime("%d/%m/%Y %H:%M") if mostrar_timestamp else ""
+
+    info_items = [f"v{versao}", ambiente]
+    if hora_str:
+        info_items.append(hora_str)
+
+    info_text = " • ".join(info_items)
+
+    st.markdown(
+        f"""
+        <div style="
+            background: rgba(0, 0, 0, 0.08);
+            border-top: 1px solid rgba(1, 40, 105, 0.12);
+            border-radius: 0;
+            padding: 10px 12px;
+            margin-top: 20px;
+            text-align: center;
+            font-size: 11px;
+            color: #636366;
+            font-weight: 500;
+        ">
+            {info_text}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ====================================================
+# 🔧 HELPER FUNCTIONS
+# ====================================================
+
+def get_hora_atual_brt() -> str:
+    """Retorna a hora atual em formato BRT (São Paulo)."""
+    return datetime.now(FUSO_HORARIO).strftime("%H:%M:%S")
+
+
+def get_data_atual_br() -> str:
+    """Retorna a data atual em formato DD/MM/YYYY."""
+    return datetime.now(FUSO_HORARIO).strftime("%d/%m/%Y")
