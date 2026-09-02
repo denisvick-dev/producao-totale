@@ -213,19 +213,10 @@ def injetar_css_sidebar_corp() -> None:
             filter: brightness(0) invert(1);
         }}
         
-        /* Troca a escrita do item ativo e inativo no menu lateral */
-        [data-testid="stSidebarNav"] a[href*="producao"] span,
-        [data-testid="stSidebarNav"] a[aria-current="page"] span {{
-            font-size: 0 !important;
-        }}
-
-        [data-testid="stSidebarNav"] a[href*="producao"] span::before,
-        [data-testid="stSidebarNav"] a[aria-current="page"] span::before {{
-            content: "📊 Produção" !important;
-            font-size: 14px !important;
-            font-weight: 800 !important;
-            color: #012869 !important; /* Azul Totale */
-        }}
+        /* Mantém os rótulos nativos da navegação para evitar páginas ocultas ou nomes incorretos. */
+        [data-testid="stSidebarNav"] li:first-child {{ display: list-item !important; }}
+        [data-testid="stSidebarNav"] a span {{ font-size: 14px !important; }}
+        [data-testid="stSidebarNav"] a span::before {{ content: none !important; }}
 
         /* ═══════════════════════════════════════════════════
            BOTÕES
@@ -256,9 +247,21 @@ def injetar_css_sidebar_corp() -> None:
         }}
 
         [data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {{
-            background: linear-gradient(135deg, #C0392B 0%, #E74C3C 100%) !important;
+            background: {TOTALE_LARANJA} !important;
             color: #FFFFFF !important;
             border-color: transparent !important;
+        }}
+
+        /* Ajustes finais do tema claro Totale */
+        [data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #F4F6F9 0%, #EEF2F7 100%) !important;
+            border-right: 1px solid #D9E0E9 !important;
+        }}
+        [data-testid="stSidebar"] .sidebar-profile-card {{
+            background: #FFFFFF !important;
+            border-color: #D9E0E9 !important;
+            border-left-color: {TOTALE_LARANJA} !important;
+            box-shadow: 0 4px 12px rgba(1, 40, 105, 0.08) !important;
         }}
 
         /* ═══════════════════════════════════════════════════

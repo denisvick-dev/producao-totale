@@ -858,7 +858,7 @@ with st.container(border=True):
     # ─ Filtro de Data ──
     if col_data and not df_raw[col_data].dropna().empty:
         min_d = df_raw[col_data].dropna().min()
-        max_d = df_raw[col_data].dropna().max()
+        max_d = max(df_raw[col_data].dropna().max(), datetime.date.today())
         with f1:
             d_ini = st.date_input(
                 "📅 De",

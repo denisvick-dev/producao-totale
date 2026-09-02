@@ -870,7 +870,7 @@ with st.container(border=True):
         and not df_prod[col_data].dropna().empty
     ):
         min_date = df_prod[col_data].dropna().min()
-        max_date = df_prod[col_data].dropna().max()
+        max_date = max(df_prod[col_data].dropna().max(), datetime.date.today())
 
         default_ini = st.session_state.get("filtro_data_inicio", min_date)
         default_fim = st.session_state.get("filtro_data_fim", max_date)
