@@ -441,18 +441,18 @@ class Utilitarios:
         df: pd.DataFrame, col_data: Optional[str] = None
     ) -> tuple[int, int, Any, int]:
         col = col_data or Utilitarios.encontrar_coluna_data(df)
-        data_max: Any = (
+        data_referencia: Any = (
             pd.to_datetime(df[col].max()).date()
             if col and pd.notna(df[col].max())
             else datetime.date.today()
         )
-        ano, mes = data_max.year, data_max.month
+        ano, mes = data_referencia.year, data_referencia.month
         primeiro = datetime.date(ano, mes, 1)
         _, ult = calendar.monthrange(ano, mes)
         ultimo = datetime.date(ano, mes, ult)
 
         p_np = np.datetime64(primeiro)
-        m_np = np.datetime64(data_max)
+        m_np = np.datetime64(data_referencia)
         u_np = np.datetime64(ultimo)
 
         weekmask = "1111110"  # seg-sáb = 1 | dom = 0
@@ -464,7 +464,7 @@ class Utilitarios:
         )
         brutos = max(0, total - passados)
         seguros = max(1, brutos)
-        return brutos, seguros, data_max, passados
+        return brutos, seguros, data_referencia, passados
 
     @staticmethod
     def converter_data(series: pd.Series) -> pd.Series:
@@ -997,10 +997,10 @@ if (
 media_diaria = t_pontos / dias_com_os
 t_projecao = t_pontos + (media_diaria * dias_brutos)
 
-sub_proj = f"Média {Utilitarios.formatar_numero(media_diaria, 2)} pts/dia × {dias_brutos} dias restantes"
+sub_proj = f"Média {Utilitarios.formatar_numero(media_diaria)} pts/dia × {dias_brutos} dias restantes"
 tip_proj = (
-    f"Projeção = {Utilitarios.formatar_numero(t_pontos, 2)} pts atuais + "
-    f"({Utilitarios.formatar_numero(media_diaria, 2)} pts/dia × {dias_brutos} dias úteis restantes, sem domingos). "
+    f"Projeção = {Utilitarios.formatar_numero(t_pontos)} pts atuais + "
+    f"({Utilitarios.formatar_numero(media_diaria)} pts/dia × {dias_brutos} dias úteis restantes, sem domingos). "
     f"Referência: {pd.Timestamp(data_ref).strftime('%d/%m/%Y')}."
 )
 
@@ -1086,9 +1086,9 @@ with kr2:
     st.markdown(
         _criar_card_tooltip(
             "Prévia de Pontos",
-            Utilitarios.formatar_numero(t_pontos, 2),
+            Utilitarios.formatar_numero(t_pontos),
             "azul",
-            f"Prod: {Utilitarios.formatar_numero(pontos_prod, 2)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon, 2)}",
+            f"Prod: {Utilitarios.formatar_numero(pontos_prod)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon)}",
             "🎯",
             "Prévia total (Prod + Gpon)",
         ),
@@ -1098,7 +1098,7 @@ with kr3:
     st.markdown(
         _criar_card_tooltip(
             "Projeção Fim do Mês",
-            Utilitarios.formatar_numero(t_projecao, 2),
+            Utilitarios.formatar_numero(t_projecao),
             "escuro",
             sub_proj,
             "📈",
@@ -1110,11 +1110,11 @@ with kr4:
     st.markdown(
         _criar_card_tooltip(
             "Média por O.S.",
-            Utilitarios.formatar_numero(media_pontos, 2),
+            Utilitarios.formatar_numero(media_pontos),
             "verde",
             f"{icone_var} {txt_var} vs média da operação",
             "📊",
-            f"Média da operação: {Utilitarios.formatar_numero(media_os_geral, 2)} pts/O.S.",
+            f"Média da operação: {Utilitarios.formatar_numero(media_os_geral)} pts/O.S.",
         ),
         unsafe_allow_html=True,
     )
@@ -1135,7 +1135,7 @@ with kr6:
     )
     tip_share = (
         f"Seus pontos ÷ pontos totais do projeto <b>{projeto_tecnico}</b>. "
-        f"Total do projeto: {Utilitarios.formatar_numero(pontos_projeto, 2)} pts."
+        f"Total do projeto: {Utilitarios.formatar_numero(pontos_projeto)} pts."
         if projeto_tecnico
         else "Seus pontos ÷ pontos totais da operação"
     )
@@ -1154,7 +1154,7 @@ with kr7:
     st.markdown(
         _criar_card_tooltip(
             "Média Pontos/Dia",
-            Utilitarios.formatar_numero(media_diaria, 2),
+            Utilitarios.formatar_numero(media_diaria),
             "verde",
             f"Em {dias_com_os} dia(s) com produção",
             "⚡",
@@ -1203,17 +1203,17 @@ if not df_metas.empty and col_pontos:
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Meta": st.column_config.NumberColumn("🎯 Meta Mensal", format="%.2f"),
+            "Meta": st.column_config.NumberColumn("🎯 Meta Mensal", format="%.0f"),
             "Pontos Atuais": st.column_config.NumberColumn(
-                "📌 Pontos Atuais", format="%.2f"
+                "📌 Pontos Atuais", format="%.0f"
             ),
             "Progresso": st.column_config.ProgressColumn(
                 "📊 Progresso", min_value=0.0, max_value=100.0, format="%.1f%%"
             ),
-            "Faltam": st.column_config.NumberColumn("➖ Faltam", format="%.2f"),
+            "Faltam": st.column_config.NumberColumn("➖ Faltam", format="%.0f"),
             "Pontos/Dia Necessário": st.column_config.NumberColumn(
                 "📅 Pontos/Dia Necessário",
-                format="%.2f",
+                format="%.0f",
                 help="Faltam ÷ dias úteis restantes (sem domingos)",
             ),
             "Vs Meta": st.column_config.TextColumn("📈 Vs Meta"),
@@ -1248,8 +1248,8 @@ if col_data and col_data in df_tec_prod.columns and col_pontos:
     )
     st.caption(
         f"➖ Linha tracejada = ritmo diário necessário para alcançar a meta de "
-        f"**{Utilitarios.formatar_numero(META_PRINCIPAL, 2)} pontos** no mês "
-        f"({Utilitarios.formatar_numero(meta_dia_principal, 2)} pts/dia)."
+        f"**{Utilitarios.formatar_numero(META_PRINCIPAL)} pontos** no mês "
+        f"({Utilitarios.formatar_numero(meta_dia_principal)} pts/dia)."
     )
 
 st.write("---")

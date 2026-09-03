@@ -452,10 +452,10 @@ class Utilitarios:
         return None
 
     @staticmethod
-    def formatar_numero(v: float, casas: int = 2) -> str:
-        """Formata números com 2 casas decimais (padrão para pontos)."""
+    def formatar_numero(v: float, casas: int = 0) -> str:
+        """Formata números inteiros no padrão brasileiro."""
         if pd.isna(v):
-            return "0,00"
+            return "0"
         return f"{v:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     @staticmethod
@@ -512,17 +512,17 @@ class Utilitarios:
     def calcular_dias_uteis(
         df: pd.DataFrame, col_data: Optional[str]
     ) -> Tuple[int, int, Any, int]:
-        data_max: Any = (
+        data_referencia: Any = (
             pd.to_datetime(df[col_data].max()).date()
             if col_data and col_data in df.columns and pd.notna(df[col_data].max())
             else datetime.date.today()
         )
-        ano, mes = data_max.year, data_max.month
+        ano, mes = data_referencia.year, data_referencia.month
         primeiro = datetime.date(ano, mes, 1)
         _, ult = calendar.monthrange(ano, mes)
         ultimo = datetime.date(ano, mes, ult)
         p_np = np.datetime64(primeiro)
-        m_np = np.datetime64(data_max)
+        m_np = np.datetime64(data_referencia)
         u_np = np.datetime64(ultimo)
         wm = "1111110"
         total = int(np.busday_count(p_np, u_np + np.timedelta64(1, "D"), weekmask=wm))
@@ -530,7 +530,7 @@ class Utilitarios:
             np.busday_count(p_np, m_np + np.timedelta64(1, "D"), weekmask=wm)
         )
         brutos = max(0, total - passados)
-        return brutos, max(1, brutos), data_max, passados
+        return brutos, max(1, brutos), data_referencia, passados
 
     @staticmethod
     def exportar_excel(abas: Dict[str, pd.DataFrame]) -> bytes:
@@ -954,9 +954,9 @@ with k1:
     st.markdown(
         _card(
             "Total de Pontos",
-            Utilitarios.formatar_numero(total_pontos, 2),
+            Utilitarios.formatar_numero(total_pontos),
             "azul",
-            f"Prod: {Utilitarios.formatar_numero(pts_prod, 2)} | Gpon: {Utilitarios.formatar_numero(pts_gpon, 2)}",
+            f"Prod: {Utilitarios.formatar_numero(pts_prod)} | Gpon: {Utilitarios.formatar_numero(pts_gpon)}",
             "🎯",
         ),
         unsafe_allow_html=True,
@@ -1046,7 +1046,7 @@ with tab_visao_geral:
         st.markdown(
             _card(
                 "Projeção Média Equipe",
-                Utilitarios.formatar_numero(proj_media, 2),
+                Utilitarios.formatar_numero(proj_media),
                 "escuro",
                 "Fim do mês estimado",
                 "📈",
@@ -1061,7 +1061,7 @@ with tab_visao_geral:
                 "Top 1 Técnico",
                 str(top1).title(),
                 "laranja",
-                f"{Utilitarios.formatar_numero(top1_pts, 2)} pts",
+                f"{Utilitarios.formatar_numero(top1_pts)} pts",
                 "🥇",
             ),
             unsafe_allow_html=True,
@@ -1106,10 +1106,10 @@ with tab_visao_geral:
         col_supervisor: st.column_config.TextColumn("Supervisor"),
         "Status": st.column_config.TextColumn("Status"),
         "Qtd O.S.": st.column_config.NumberColumn("📋 O.S.", format="%d"),
-        "Total Pontos": st.column_config.NumberColumn("🎯 Pontos", format="%.2f"),
-        "Média/Dia": st.column_config.NumberColumn("⚡ Méd/Dia", format="%.2f"),
-        "Média/O.S.": st.column_config.NumberColumn("📊 Méd/O.S.", format="%.2f"),
-        "Projeção": st.column_config.NumberColumn("📈 Projeção", format="%.2f"),
+        "Total Pontos": st.column_config.NumberColumn("🎯 Pontos", format="%.0f"),
+        "Média/Dia": st.column_config.NumberColumn("⚡ Méd/Dia", format="%.0f"),
+        "Média/O.S.": st.column_config.NumberColumn("📊 Méd/O.S.", format="%.0f"),
+        "Projeção": st.column_config.NumberColumn("📈 Projeção", format="%.0f"),
     }
 
     st.dataframe(
@@ -1132,13 +1132,13 @@ with tab_equipes:
                 hide_index=True,
                 column_config={
                     "Total Pontos": st.column_config.NumberColumn(
-                        "🎯 Total Pontos", format="%.2f"
+                        "🎯 Total Pontos", format="%.0f"
                     ),
                     "Média Pontos": st.column_config.NumberColumn(
-                        "📊 Média/Téc", format="%.2f"
+                        "📊 Média/Téc", format="%.0f"
                     ),
                     "Projeção Média": st.column_config.NumberColumn(
-                        "📈 Projeção Méd", format="%.2f"
+                        "📈 Projeção Méd", format="%.0f"
                     ),
                     "Qtd O.S. Total": st.column_config.NumberColumn(
                         "📋 O.S.", format="%d"
