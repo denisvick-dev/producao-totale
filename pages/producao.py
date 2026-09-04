@@ -508,9 +508,52 @@ class Utilitarios:
         return "font-weight:700;border-left:3px solid #EF4444;text-align:center;"
 
     @staticmethod
+    def obter_feriados_nacionais(ano: int) -> List[datetime.date]:
+        """
+        Calcula os feriados nacionais fixos e móveis brasileiros para o ano informado.
+        Inclui Carnaval, Sexta-feira Santa, Corpus Christi e Consciência Negra.
+        """
+        # Algoritmo de Butcher (Computus) para o Domingo de Páscoa
+        a = ano % 19
+        b = ano // 100
+        c = ano % 100
+        d = b // 4
+        e = b % 4
+        f = (b + 8) // 25
+        g = (b - f + 1) // 3
+        h = (19 * a + b - d - g + 15) % 30
+        i = c // 4
+        k = c % 4
+        l_val = (32 + 2 * e + 2 * i - h - k) % 7
+        m = (a + 11 * h + 22 * l_val) // 451
+        mes = (h + l_val - 7 * m + 114) // 31
+        dia = ((h + l_val - 7 * m + 114) % 31) + 1
+        pascoa = datetime.date(ano, mes, dia)
+
+        feriados = [
+            datetime.date(ano, 1, 1),  # Confraternização Universal
+            pascoa - timedelta(days=48),  # Segunda-feira de Carnaval
+            pascoa - timedelta(days=47),  # Terça-feira de Carnaval
+            pascoa - timedelta(days=2),  # Sexta-feira Santa (Paixão de Cristo)
+            datetime.date(ano, 4, 21),  # Tiradentes
+            datetime.date(ano, 5, 1),  # Dia Mundial do Trabalho
+            pascoa + timedelta(days=60),  # Corpus Christi
+            datetime.date(ano, 9, 7),  # Independência do Brasil
+            datetime.date(ano, 10, 12),  # Nossa Senhora Aparecida
+            datetime.date(ano, 11, 2),  # Finados
+            datetime.date(ano, 11, 15),  # Proclamação da República
+            datetime.date(ano, 11, 20),  # Dia Nacional de Zumbi e da Consciência Negra
+            datetime.date(ano, 12, 25),  # Natal
+        ]
+        return feriados
+
+    @staticmethod
     def calcular_dias_uteis(
         df: pd.DataFrame, col_data: Optional[str] = None
     ) -> tuple[int, int, Any, int]:
+        """
+        Calcula os dias úteis do mês (Segunda a Sábado, exceto Domingos e Feriados).
+        """
         col = col_data or Utilitarios.encontrar_coluna_data(df)
         data_referencia: Any = (
             pd.to_datetime(df[col].max()).date()
@@ -527,11 +570,26 @@ class Utilitarios:
         u_np = np.datetime64(ultimo)
 
         weekmask = "1111110"  # seg-sáb = 1 | dom = 0
+
+        # Lista de feriados nacionais do ano
+        feriados = Utilitarios.obter_feriados_nacionais(ano)
+        feriados_np = np.array(feriados, dtype="datetime64[D]")
+
         total = int(
-            np.busday_count(p_np, u_np + np.timedelta64(1, "D"), weekmask=weekmask)
+            np.busday_count(
+                p_np,
+                u_np + np.timedelta64(1, "D"),
+                weekmask=weekmask,
+                holidays=feriados_np,
+            )
         )
         passados = int(
-            np.busday_count(p_np, m_np + np.timedelta64(1, "D"), weekmask=weekmask)
+            np.busday_count(
+                p_np,
+                m_np + np.timedelta64(1, "D"),
+                weekmask=weekmask,
+                holidays=feriados_np,
+            )
         )
         brutos = max(0, total - passados)
         seguros = max(1, brutos)
@@ -931,7 +989,6 @@ col_data = Utilitarios.buscar_coluna(
 if col_data:
     df_prod[col_data] = Utilitarios.converter_data(df_prod[col_data]).dt.date
 
-# Data do mês anterior para filtro/cálculo
 col_data_ant = Utilitarios.buscar_coluna(
     df_prod_mes_ant,
     ["DATA", "DATA AGENDAMENTO", "DATA CONCLUSÃO", "DATA_EXECUCAO", "DATE"],
@@ -1064,7 +1121,7 @@ elif col_pontos:
 t_os = len(df_tec_prod)
 t_pontos = pontos_prod + pontos_gpon
 
-# 🆕 CÁLCULO DE PONTOS DO MÊS ANTERIOR (MESMA LÓGICA: PROD + GPON)
+# Cálculo de pontos do mês anterior (Prod + Gpon)
 pontos_prod_mes_ant = 0.0
 pontos_gpon_mes_ant = 0.0
 pontos_mes_anterior = 0.0
@@ -1119,7 +1176,7 @@ if not df_prod_mes_ant.empty:
     elif col_pontos_ant:
         pontos_mes_anterior = float(df_prod_mes_ant[col_pontos_ant].sum())
 
-# Dias úteis sem domingos
+# Dias úteis (Segunda a Sábado, sem domingos e sem feriados)
 dias_brutos, dias_seguros, data_ref, dias_passados = Utilitarios.calcular_dias_uteis(
     df_tec_prod, col_data=col_data
 )
@@ -1139,7 +1196,7 @@ t_projecao = t_pontos + (media_diaria * dias_brutos)
 sub_proj = f"Média {Utilitarios.formatar_numero(media_diaria, 2)} pts/dia × {dias_brutos} dias restantes"
 tip_proj = (
     f"Projeção = {Utilitarios.formatar_numero(t_pontos, 2)} pts atuais + "
-    f"({Utilitarios.formatar_numero(media_diaria, 2)} pts/dia × {dias_brutos} dias úteis restantes, sem domingos). "
+    f"({Utilitarios.formatar_numero(media_diaria, 2)} pts/dia × {dias_brutos} dias úteis restantes, sem domingos e feriados). "
     f"Referência: {pd.Timestamp(data_ref).strftime('%d/%m/%Y')}."
 )
 
@@ -1309,20 +1366,19 @@ with kr8:
             "cinza",
             f"Mês de referência: {pd.Timestamp(data_ref).strftime('%m/%Y')}",
             "📆",
-            "Segunda a sábado (sem domingos), até o fim do mês",
+            "Segunda a sábado (exceto domingos e feriados), até o fim do mês",
         ),
         unsafe_allow_html=True,
     )
 
 # ====================================================
-# 🆕 MINI-DASHBOARD DO MÊS ANTERIOR
+# MINI-DASHBOARD DO MÊS ANTERIOR
 # ====================================================
 st.write("")
 with st.container(border=True):
     render_section_header("📅", "Histórico Operacional — Mês Anterior")
 
     if not df_prod_mes_ant.empty:
-        # Dias com OS e média diária do mês passado
         dias_com_os_ant = 1
         if col_data_ant and col_data_ant in df_prod_mes_ant.columns:
             datas_validas_ant = pd.to_datetime(df_prod_mes_ant[col_data_ant]).dropna()
@@ -1383,7 +1439,6 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
 
-        # Determinar qual foi o status final do mês passado
         status_final_ant = "🔴 Não Atingida"
         cor_feedback = "alerta"
         for meta in sorted(METAS_MENSAIS, reverse=True):
@@ -1442,7 +1497,7 @@ if not df_metas.empty and col_pontos:
             "Pontos/Dia Necessário": st.column_config.NumberColumn(
                 "📅 Pontos/Dia Necessário",
                 format="%.2f",
-                help="Faltam ÷ dias úteis restantes (sem domingos)",
+                help="Faltam ÷ dias úteis restantes (sem domingos e feriados)",
             ),
             "Vs Meta": st.column_config.TextColumn("📈 Vs Meta"),
             "Situação": st.column_config.TextColumn("Status"),
