@@ -685,52 +685,101 @@ class Graficos:
         y_line: str,
         meta_dia: Optional[float] = None,
     ) -> go.Figure:
+        df_plot = df.copy()
+
+        # Garante eixo X só com data (sem hora)
+        df_plot[x_col] = pd.to_datetime(df_plot[x_col]).dt.normalize()
+
         fig = go.Figure()
+
+        # Barras — Volume de O.S. (eixo esquerdo)
         fig.add_trace(
             go.Bar(
-                x=df[x_col],
-                y=df[y_bar],
+                x=df_plot[x_col],
+                y=df_plot[y_bar],
                 name="Volume O.S.",
-                marker_color="#CBD5E1",
-                opacity=0.8,
+                marker_color="rgba(148, 163, 184, 0.45)",
+                marker_line=dict(color="#94A3B8", width=1),
+                opacity=1,
+                hovertemplate="<b>%{x|%d/%m/%Y}</b><br>O.S.: %{y}<extra></extra>",
             )
         )
+
+        # Linha — Pontos (eixo direito)
         fig.add_trace(
             go.Scatter(
-                x=df[x_col],
-                y=df[y_line],
+                x=df_plot[x_col],
+                y=df_plot[y_line],
                 name="Pontos",
-                mode="lines+markers",
+                mode="lines+markers+text",
                 line=dict(color="#012869", width=3),
-                marker=dict(size=8, color="#F37C04"),
+                marker=dict(
+                    size=9, color="#F37C04", line=dict(width=2, color="#012869")
+                ),
+                text=[Utilitarios.formatar_numero(v, 2) for v in df_plot[y_line]],
+                textposition="top center",
+                textfont=dict(size=11, color="#012869"),
                 yaxis="y2",
+                hovertemplate="<b>%{x|%d/%m/%Y}</b><br>Pontos: %{y:.2f}<extra></extra>",
             )
         )
+
+        # Meta diária no EIXO DE PONTOS (y2) — correção principal
         if meta_dia and meta_dia > 0:
             fig.add_hline(
                 y=meta_dia,
+                yref="y2",  # ← eixo direito (Pontos)
                 line_dash="dash",
                 line_color="#F37C04",
-                annotation_text=f"Meta/dia necessária: {Utilitarios.formatar_numero(meta_dia, 1)} pts",
+                line_width=2,
+                annotation_text=f"Meta/dia: {Utilitarios.formatar_numero(meta_dia, 2)} pts",
                 annotation_position="top left",
+                annotation=dict(
+                    font=dict(size=11, color="#C2410C"),
+                    bgcolor="rgba(255,247,237,0.9)",
+                    bordercolor="#FDBA74",
+                    borderwidth=1,
+                    borderpad=4,
+                ),
             )
+
         fig.update_layout(
-            margin=dict(l=0, r=50, t=30, b=0),
+            margin=dict(l=10, r=60, t=40, b=10),
             legend=dict(
-                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                orientation="h",
+                yanchor="bottom",
+                y=1.08,
+                xanchor="right",
+                x=1,
+                bgcolor="rgba(0,0,0,0)",
             ),
             hovermode="x unified",
+            bargap=0.25,
             yaxis=dict(
-                title="Quantidade O.S.", showgrid=True, gridcolor="rgba(0,0,0,0.05)"
+                title="Quantidade O.S.",
+                showgrid=True,
+                gridcolor="rgba(0,0,0,0.05)",
+                zeroline=False,
+                side="left",
             ),
             yaxis2=dict(
                 title="Pontos",
                 overlaying="y",
                 side="right",
                 showgrid=False,
-                tickformat=".1f",
+                zeroline=False,
+                tickformat=".2f",
+                # Garante que a meta e os pontos caibam com folga
+                rangemode="tozero",
             ),
-            xaxis=dict(showgrid=False),
+            xaxis=dict(
+                title="",
+                showgrid=False,
+                tickformat="%d/%m",  # só dia/mês
+                dtick="D1",  # 1 tick por dia
+                tickangle=0,
+                type="date",
+            ),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
         )
@@ -1516,12 +1565,17 @@ st.write("---")
 # ====================================================
 if col_data and col_data in df_tec_prod.columns and col_pontos:
     render_section_header("📊", "Evolução Diária vs Meta")
+
     df_tempo = (
         df_tec_prod.groupby(col_data)
         .agg(Pontos=(col_pontos, "sum"), Qtd_OS=(col_pontos, "count"))
         .reset_index()
         .sort_values(col_data)
     )
+
+    # Garante que a coluna de data seja date pura (sem hora)
+    df_tempo[col_data] = pd.to_datetime(df_tempo[col_data]).dt.normalize()
+
     st.plotly_chart(
         Graficos.grafico_combo_raiox(
             df_tempo, col_data, "Qtd_OS", "Pontos", meta_dia=meta_dia_principal
@@ -1532,7 +1586,8 @@ if col_data and col_data in df_tec_prod.columns and col_pontos:
     st.caption(
         f"➖ Linha tracejada = ritmo diário necessário para alcançar a meta de "
         f"**{Utilitarios.formatar_numero(META_PRINCIPAL, 0)} pontos** no mês "
-        f"({Utilitarios.formatar_numero(meta_dia_principal, 2)} pts/dia)."
+        f"({Utilitarios.formatar_numero(meta_dia_principal, 2)} pts/dia · "
+        f"sem domingos e feriados)."
     )
 
 st.write("---")
