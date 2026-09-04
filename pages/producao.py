@@ -223,6 +223,7 @@ def render_sidebar_perfil() -> None:
 # ====================================================
 SPREADSHEET_ID_PRODUCAO = "11Dp9WdZYUrT_LBvfo07Mi8muKXZykU7v"
 SPREADSHEET_ID_ATIVOS = "1LQKDcLshC6XSXLBVWaEYSpxrro6uydyU9pwDLc38pEg"
+SPREADSHEET_ID_PRODUCAO_MES_ANTERIOR = "1vGWZaUL9AHLKHSr5gD0yoOx4dqYaAyHf"
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -284,6 +285,76 @@ def carregar_base_producao() -> pd.DataFrame:
                     return df
             except Exception:
                 continue
+        try:
+            df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
+            if not df.empty and df.shape[1] > 1:
+                return df
+        except Exception:
+            continue
+    return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def carregar_base_producao_mes_anterior() -> pd.DataFrame:
+    """Carrega a planilha de produção do mês anterior (abas Prod + Gpon)."""
+    urls = [
+        f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID_PRODUCAO_MES_ANTERIOR}/export?format=xlsx",
+        f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID_PRODUCAO_MES_ANTERIOR}/export?format=csv",
+        f"https://drive.google.com/uc?export=download&id={SPREADSHEET_ID_PRODUCAO_MES_ANTERIOR}",
+    ]
+    for url in urls:
+        try:
+            resp = requests.get(url, timeout=30)
+        except requests.RequestException:
+            continue
+        if resp.status_code != 200 or len(resp.content) <= 100:
+            continue
+
+        content = resp.content
+        if url.endswith("format=xlsx"):
+            try:
+                abas = pd.read_excel(
+                    io.BytesIO(content), sheet_name=None, engine="openpyxl"
+                )
+                abas_alvo = {
+                    str(nome).strip().lower(): df
+                    for nome, df in abas.items()
+                    if str(nome).strip().lower() in ("prod", "gpon") and not df.empty
+                }
+                if abas_alvo:
+                    frames = []
+                    for nome_aba in ("prod", "gpon"):
+                        df_aba = abas_alvo.get(nome_aba)
+                        if df_aba is not None:
+                            df_aba = df_aba.copy()
+                            df_aba["__origem__"] = nome_aba.title()
+                            if nome_aba == "gpon":
+                                col_contrato = Utilitarios.buscar_coluna(
+                                    df_aba, ["CONTRATO", "OS", "O.S."]
+                                )
+                                if col_contrato:
+                                    df_aba = df_aba.drop_duplicates(
+                                        subset=[col_contrato], keep="first"
+                                    )
+                            frames.append(df_aba)
+                    if frames:
+                        return pd.concat(frames, ignore_index=True)
+            except Exception:
+                pass
+
+        for csv_kwargs in (
+            {"sep": None, "engine": "python", "encoding": "utf-8"},
+            {"sep": ";", "encoding": "latin-1"},
+            {"sep": ",", "encoding": "utf-8"},
+        ):
+            csv_kwargs: Dict[str, Any] = dict(csv_kwargs)
+            try:
+                df = pd.read_csv(io.BytesIO(content), **csv_kwargs)
+                if not df.empty and df.shape[1] > 1:
+                    return df
+            except Exception:
+                continue
+
         try:
             df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
             if not df.empty and df.shape[1] > 1:
@@ -396,7 +467,7 @@ class Utilitarios:
         return "share", f"{Utilitarios.formatar_numero(share, 1)}% do Total"
 
     @staticmethod
-    def formatar_numero(v: float, casas_decimais: int = 0) -> str:
+    def formatar_numero(v: float, casas_decimais: int = 2) -> str:
         if pd.isna(v):
             return "0," + "0" * casas_decimais if casas_decimais else "0"
         return (
@@ -517,7 +588,6 @@ def realizar_merge_producao_ativos(
     if df_prod.empty or df_ativos.empty:
         return df_prod
 
-    # Procura CódAuxEquip na tabela de Produção
     col_prod_key = Utilitarios.buscar_coluna(
         df_prod,
         [
@@ -525,7 +595,6 @@ def realizar_merge_producao_ativos(
         ],
     )
 
-    # Procura Login na tabela Lista Ativos
     col_ativos_key = Utilitarios.buscar_coluna(
         df_ativos, ["Login", "LOGIN", "CodAuxEquipe", "RE", "MATRICULA"]
     )
@@ -536,14 +605,11 @@ def realizar_merge_producao_ativos(
     df_p = df_prod.copy()
     df_a = df_ativos.copy()
 
-    # Normalização das chaves (ex: "Z638189" == "Z638189")
     df_p["__chave_merge__"] = Utilitarios.normalizar_chave_string(df_p[col_prod_key])
     df_a["__chave_merge__"] = Utilitarios.normalizar_chave_string(df_a[col_ativos_key])
 
-    # Remove duplicados na base de ativos para evitar efeito multiplicador
     df_a = df_a.drop_duplicates(subset=["__chave_merge__"], keep="first")
 
-    # Realiza o Merge mantendo todos os registros de produção
     df_merged = df_p.merge(
         df_a, on="__chave_merge__", how="left", suffixes=("", "_ativos")
     )
@@ -714,6 +780,12 @@ _TEMAS_CARD = {
         "borda": "#64748B",
         "titulo": "#94A3B8",
     },
+    "roxo": {
+        "fundo": "#FAF5FF",
+        "texto": "#7E22CE",
+        "borda": "#A855F7",
+        "titulo": "#6B21A8",
+    },
 }
 
 
@@ -758,7 +830,7 @@ render_hero_totale_1(
 loader = st.empty()
 loader.markdown(
     """<div class="loading-totale">
-        <span style="color:#012869; font-weight:700;">⚡ Sincronizando produção e lista de ativos...</span>
+        <span style="color:#012869; font-weight:700;">⚡ Sincronizando produção, ativos e histórico...</span>
         <span style="color:#F37C04; font-weight:800; font-size:13px;">Aguarde</span>
     </div>""",
     unsafe_allow_html=True,
@@ -766,9 +838,10 @@ loader.markdown(
 
 df_prod_raw = carregar_base_producao()
 df_ativos_raw = carregar_base_ativos()
+df_prod_mes_ant_raw = carregar_base_producao_mes_anterior()
 
-# 🔗 EXECUTA O MERGE: Produção (CódAuxEquip) ↔ Lista Ativos (Login)
 df_raw = realizar_merge_producao_ativos(df_prod_raw, df_ativos_raw)
+df_raw_mes_ant = realizar_merge_producao_ativos(df_prod_mes_ant_raw, df_ativos_raw)
 
 loader.empty()
 
@@ -830,6 +903,7 @@ def filtrar_tecnico(df: pd.DataFrame) -> pd.DataFrame:
 
 
 df_prod = filtrar_tecnico(df_raw)
+df_prod_mes_ant = filtrar_tecnico(df_raw_mes_ant)
 
 if df_prod.empty:
     render_insight(
@@ -856,6 +930,16 @@ col_data = Utilitarios.buscar_coluna(
 )
 if col_data:
     df_prod[col_data] = Utilitarios.converter_data(df_prod[col_data]).dt.date
+
+# Data do mês anterior para filtro/cálculo
+col_data_ant = Utilitarios.buscar_coluna(
+    df_prod_mes_ant,
+    ["DATA", "DATA AGENDAMENTO", "DATA CONCLUSÃO", "DATA_EXECUCAO", "DATE"],
+)
+if col_data_ant:
+    df_prod_mes_ant[col_data_ant] = Utilitarios.converter_data(
+        df_prod_mes_ant[col_data_ant]
+    ).dt.date
 
 # ====================================================
 # 11. FILTROS DE PERÍODO
@@ -980,6 +1064,61 @@ elif col_pontos:
 t_os = len(df_tec_prod)
 t_pontos = pontos_prod + pontos_gpon
 
+# 🆕 CÁLCULO DE PONTOS DO MÊS ANTERIOR (MESMA LÓGICA: PROD + GPON)
+pontos_prod_mes_ant = 0.0
+pontos_gpon_mes_ant = 0.0
+pontos_mes_anterior = 0.0
+t_os_mes_anterior = 0
+
+if not df_prod_mes_ant.empty:
+    col_pontos_ant = Utilitarios.buscar_coluna(
+        df_prod_mes_ant, ["PONTOS", "PONTO", "PTS", "PONTUACAO", "PREVIA"]
+    )
+    if col_pontos_ant:
+        df_prod_mes_ant[col_pontos_ant] = Utilitarios.normalizar_pontos(
+            df_prod_mes_ant[col_pontos_ant]
+        )
+
+    t_os_mes_anterior = len(df_prod_mes_ant)
+
+    col_prod_ant = Utilitarios.buscar_coluna(
+        df_prod_mes_ant, ["PONTOS_PROD", "PROD_PONTOS", "PONTOS PROD"]
+    )
+    col_gpon_ant = Utilitarios.buscar_coluna(
+        df_prod_mes_ant, ["PONTOS_GPON", "GPON_PONTOS", "PONTOS GPON"]
+    )
+    col_origem_ant = Utilitarios.buscar_coluna(
+        df_prod_mes_ant, ["ORIGEM", "TIPO", "SISTEMA", "FONTE", "TIPO_OS", "__ORIGEM__"]
+    )
+
+    if col_prod_ant and col_gpon_ant:
+        df_prod_mes_ant[col_prod_ant] = Utilitarios.normalizar_pontos(
+            df_prod_mes_ant[col_prod_ant]
+        )
+        df_prod_mes_ant[col_gpon_ant] = Utilitarios.normalizar_pontos(
+            df_prod_mes_ant[col_gpon_ant]
+        )
+        pontos_prod_mes_ant = float(df_prod_mes_ant[col_prod_ant].sum())
+        pontos_gpon_mes_ant = float(df_prod_mes_ant[col_gpon_ant].sum())
+        pontos_mes_anterior = pontos_prod_mes_ant + pontos_gpon_mes_ant
+    elif col_origem_ant and col_pontos_ant:
+        origem_series_ant = df_prod_mes_ant[col_origem_ant].astype(str).str.upper()
+        mask_prod_ant = origem_series_ant.str.contains("PROD", na=False)
+        mask_gpon_ant = origem_series_ant.str.contains("GPON", na=False)
+        pontos_prod_mes_ant = float(
+            df_prod_mes_ant.loc[mask_prod_ant, col_pontos_ant].sum()
+        )
+        pontos_gpon_mes_ant = float(
+            df_prod_mes_ant.loc[mask_gpon_ant, col_pontos_ant].sum()
+        )
+        outros_ant = float(
+            df_prod_mes_ant.loc[~(mask_prod_ant | mask_gpon_ant), col_pontos_ant].sum()
+        )
+        pontos_gpon_mes_ant += outros_ant
+        pontos_mes_anterior = pontos_prod_mes_ant + pontos_gpon_mes_ant
+    elif col_pontos_ant:
+        pontos_mes_anterior = float(df_prod_mes_ant[col_pontos_ant].sum())
+
 # Dias úteis sem domingos
 dias_brutos, dias_seguros, data_ref, dias_passados = Utilitarios.calcular_dias_uteis(
     df_tec_prod, col_data=col_data
@@ -997,10 +1136,10 @@ if (
 media_diaria = t_pontos / dias_com_os
 t_projecao = t_pontos + (media_diaria * dias_brutos)
 
-sub_proj = f"Média {Utilitarios.formatar_numero(media_diaria)} pts/dia × {dias_brutos} dias restantes"
+sub_proj = f"Média {Utilitarios.formatar_numero(media_diaria, 2)} pts/dia × {dias_brutos} dias restantes"
 tip_proj = (
-    f"Projeção = {Utilitarios.formatar_numero(t_pontos)} pts atuais + "
-    f"({Utilitarios.formatar_numero(media_diaria)} pts/dia × {dias_brutos} dias úteis restantes, sem domingos). "
+    f"Projeção = {Utilitarios.formatar_numero(t_pontos, 2)} pts atuais + "
+    f"({Utilitarios.formatar_numero(media_diaria, 2)} pts/dia × {dias_brutos} dias úteis restantes, sem domingos). "
     f"Referência: {pd.Timestamp(data_ref).strftime('%d/%m/%Y')}."
 )
 
@@ -1011,12 +1150,10 @@ t_os_global = 0
 posicao_geral: Optional[int] = None
 total_tecnicos = 0
 
-# 🆕 Detecta a coluna de Projeto na base
 col_projeto = Utilitarios.buscar_coluna(
     df_raw, ["PROJETO", "CAMPANHA", "OPERAÇÃO", "OPERACAO", "CONTRATO_PROJETO"]
 )
 
-# 🆕 Descobre o projeto do técnico logado
 projeto_tecnico: Optional[str] = None
 if col_projeto and col_projeto in df_tec_prod.columns:
     try:
@@ -1026,7 +1163,7 @@ if col_projeto and col_projeto in df_tec_prod.columns:
     except Exception:
         projeto_tecnico = None
 
-pontos_projeto = 0.0  # 🆕 Total de pontos do projeto do técnico
+pontos_projeto = 0.0
 
 if col_pontos and col_pontos in df_raw.columns:
     df_global = df_raw.copy()
@@ -1039,19 +1176,23 @@ if col_pontos and col_pontos in df_raw.columns:
         )
     )
 
-    # 🆕 Filtra apenas os pontos do projeto do técnico
     if col_projeto and projeto_tecnico and col_projeto in df_global.columns:
         proj_series = df_global[col_projeto].astype(str).str.strip().str.upper()
         mask_proj = proj_series == projeto_tecnico.strip().upper()
         pontos_projeto = float(df_global.loc[mask_proj, col_pontos].sum())
     else:
-        pontos_projeto = pontos_globais  # fallback: usa geral se não achar projeto
+        pontos_projeto = pontos_globais
 
-# 🔁 ALTERADO: Share agora é calculado sobre o PROJETO, não sobre o geral
 classe_share, txt_share = Utilitarios.calcular_share(t_pontos, pontos_projeto)
 media_os_geral = pontos_globais / t_os_global if t_os_global > 0 else 0.0
 classe_var, txt_var = Utilitarios.calcular_variacao(media_pontos, media_os_geral)
 icone_var = {"positiva": "⬆️", "negativa": "⬇️"}.get(classe_var, "➖")
+
+# Variação Mês Anterior vs Atual
+classe_var_mes, txt_var_mes = Utilitarios.calcular_variacao(
+    t_pontos, pontos_mes_anterior
+)
+icone_var_mes = {"positiva": "⬆️", "negativa": "⬇️"}.get(classe_var_mes, "➖")
 
 df_metas = ProcessamentoDados.calcular_painel_metas(t_pontos, dias_brutos)
 meta_dia_principal = (
@@ -1067,7 +1208,7 @@ meta_dia_principal = (
 # ====================================================
 # 13. DASHBOARD OPERACIONAL & CARDS
 # ====================================================
-render_section_header("⚙️", "Resumo de Execução Física")
+render_section_header("⚙️", "Resumo de Execução Física (Mês Atual)")
 kr1, kr2, kr3, kr4 = st.columns(4)
 
 with kr1:
@@ -1086,9 +1227,9 @@ with kr2:
     st.markdown(
         _criar_card_tooltip(
             "Prévia de Pontos",
-            Utilitarios.formatar_numero(t_pontos),
+            Utilitarios.formatar_numero(t_pontos, 2),
             "azul",
-            f"Prod: {Utilitarios.formatar_numero(pontos_prod)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon)}",
+            f"Prod: {Utilitarios.formatar_numero(pontos_prod, 2)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon, 2)}",
             "🎯",
             "Prévia total (Prod + Gpon)",
         ),
@@ -1098,7 +1239,7 @@ with kr3:
     st.markdown(
         _criar_card_tooltip(
             "Projeção Fim do Mês",
-            Utilitarios.formatar_numero(t_projecao),
+            Utilitarios.formatar_numero(t_projecao, 2),
             "escuro",
             sub_proj,
             "📈",
@@ -1110,24 +1251,22 @@ with kr4:
     st.markdown(
         _criar_card_tooltip(
             "Média por O.S.",
-            Utilitarios.formatar_numero(media_pontos),
+            Utilitarios.formatar_numero(media_pontos, 2),
             "verde",
             f"{icone_var} {txt_var} vs média da operação",
             "📊",
-            f"Média da operação: {Utilitarios.formatar_numero(media_os_geral)} pts/O.S.",
+            f"Média da operação: {Utilitarios.formatar_numero(media_os_geral, 2)} pts/O.S.",
         ),
         unsafe_allow_html=True,
     )
 
 st.write("")
-
 st.write("")
 
-# 🔁 ALTERADO: Removido card "Posição no Ranking" — agora são 3 cards
+# 4 cards na segunda linha
 kr6, kr7, kr8 = st.columns(3)
 
 with kr6:
-    # 🔁 Subtítulo dinâmico com o nome do projeto
     sub_share = (
         f"Participação no projeto {projeto_tecnico}"
         if projeto_tecnico
@@ -1135,7 +1274,7 @@ with kr6:
     )
     tip_share = (
         f"Seus pontos ÷ pontos totais do projeto <b>{projeto_tecnico}</b>. "
-        f"Total do projeto: {Utilitarios.formatar_numero(pontos_projeto)} pts."
+        f"Total do projeto: {Utilitarios.formatar_numero(pontos_projeto, 2)} pts."
         if projeto_tecnico
         else "Seus pontos ÷ pontos totais da operação"
     )
@@ -1154,7 +1293,7 @@ with kr7:
     st.markdown(
         _criar_card_tooltip(
             "Média Pontos/Dia",
-            Utilitarios.formatar_numero(media_diaria),
+            Utilitarios.formatar_numero(media_diaria, 2),
             "verde",
             f"Em {dias_com_os} dia(s) com produção",
             "⚡",
@@ -1174,6 +1313,95 @@ with kr8:
         ),
         unsafe_allow_html=True,
     )
+
+# ====================================================
+# 🆕 MINI-DASHBOARD DO MÊS ANTERIOR
+# ====================================================
+st.write("")
+with st.container(border=True):
+    render_section_header("📅", "Histórico Operacional — Mês Anterior")
+
+    if not df_prod_mes_ant.empty:
+        # Dias com OS e média diária do mês passado
+        dias_com_os_ant = 1
+        if col_data_ant and col_data_ant in df_prod_mes_ant.columns:
+            datas_validas_ant = pd.to_datetime(df_prod_mes_ant[col_data_ant]).dropna()
+            dias_com_os_ant = max(datas_validas_ant.dt.normalize().nunique(), 1)
+
+        media_diaria_ant = pontos_mes_anterior / dias_com_os_ant
+        media_pontos_ant = (
+            pontos_mes_anterior / t_os_mes_anterior if t_os_mes_anterior > 0 else 0.0
+        )
+
+        km1, km2, km3, km4 = st.columns(4)
+        with km1:
+            st.markdown(
+                _criar_card_tooltip(
+                    "O.S. Mês Anterior",
+                    str(t_os_mes_anterior),
+                    "cinza",
+                    "Volume total concluído",
+                    "📋",
+                    "Quantidade de ordens executadas no mês fechado",
+                ),
+                unsafe_allow_html=True,
+            )
+        with km2:
+            st.markdown(
+                _criar_card_tooltip(
+                    "Pontos Mês Anterior",
+                    Utilitarios.formatar_numero(pontos_mes_anterior, 2),
+                    "roxo",
+                    f"Prod: {Utilitarios.formatar_numero(pontos_prod_mes_ant, 2)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon_mes_ant, 2)}",
+                    "🏆",
+                    "Pontuação acumulada consolidada",
+                ),
+                unsafe_allow_html=True,
+            )
+        with km3:
+            st.markdown(
+                _criar_card_tooltip(
+                    "Média Pontos/Dia (Ant)",
+                    Utilitarios.formatar_numero(media_diaria_ant, 2),
+                    "verde",
+                    f"Em {dias_com_os_ant} dias de produção",
+                    "⚡",
+                    "Pontos totais do mês passado dividido por dias trabalhados",
+                ),
+                unsafe_allow_html=True,
+            )
+        with km4:
+            st.markdown(
+                _criar_card_tooltip(
+                    "Média por O.S. (Ant)",
+                    Utilitarios.formatar_numero(media_pontos_ant, 2),
+                    "azul",
+                    "Densidade de pontos por visita",
+                    "📊",
+                    "Pontos totais ÷ quantidade de O.S. no mês passado",
+                ),
+                unsafe_allow_html=True,
+            )
+
+        # Determinar qual foi o status final do mês passado
+        status_final_ant = "🔴 Não Atingida"
+        cor_feedback = "alerta"
+        for meta in sorted(METAS_MENSAIS, reverse=True):
+            if pontos_mes_anterior >= meta:
+                status_final_ant = f"🏆 Meta de {meta} Pontos Atingida!"
+                cor_feedback = "ok"
+                break
+
+        st.write("")
+        render_insight(
+            f"**Status de Fechamento do Mês Anterior:** {status_final_ant} "
+            f"com total de **{Utilitarios.formatar_numero(pontos_mes_anterior, 2)}** pontos acumulados.",
+            tipo=cor_feedback,
+        )
+    else:
+        st.info(
+            "💡 Nenhum dado de histórico do mês anterior foi encontrado para o seu perfil."
+        )
 
 st.write("---")
 
@@ -1205,15 +1433,15 @@ if not df_metas.empty and col_pontos:
         column_config={
             "Meta": st.column_config.NumberColumn("🎯 Meta Mensal", format="%.0f"),
             "Pontos Atuais": st.column_config.NumberColumn(
-                "📌 Pontos Atuais", format="%.0f"
+                "📌 Pontos Atuais", format="%.2f"
             ),
             "Progresso": st.column_config.ProgressColumn(
                 "📊 Progresso", min_value=0.0, max_value=100.0, format="%.1f%%"
             ),
-            "Faltam": st.column_config.NumberColumn("➖ Faltam", format="%.0f"),
+            "Faltam": st.column_config.NumberColumn("➖ Faltam", format="%.2f"),
             "Pontos/Dia Necessário": st.column_config.NumberColumn(
                 "📅 Pontos/Dia Necessário",
-                format="%.0f",
+                format="%.2f",
                 help="Faltam ÷ dias úteis restantes (sem domingos)",
             ),
             "Vs Meta": st.column_config.TextColumn("📈 Vs Meta"),
@@ -1248,8 +1476,8 @@ if col_data and col_data in df_tec_prod.columns and col_pontos:
     )
     st.caption(
         f"➖ Linha tracejada = ritmo diário necessário para alcançar a meta de "
-        f"**{Utilitarios.formatar_numero(META_PRINCIPAL)} pontos** no mês "
-        f"({Utilitarios.formatar_numero(meta_dia_principal)} pts/dia)."
+        f"**{Utilitarios.formatar_numero(META_PRINCIPAL, 0)} pontos** no mês "
+        f"({Utilitarios.formatar_numero(meta_dia_principal, 2)} pts/dia)."
     )
 
 st.write("---")
