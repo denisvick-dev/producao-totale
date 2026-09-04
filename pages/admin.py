@@ -430,8 +430,8 @@ def criar_dataframe_completo(
 # ====================================================
 # 6. UTILITÁRIOS
 # ====================================================
-METAS_MENSAIS = (300, 350, 375, 400)
-META_PRINCIPAL = 400
+METAS_MENSAIS = (300.00, 350.00, 375.00, 400.00)
+META_PRINCIPAL = 400.00
 
 
 class Utilitarios:
@@ -452,10 +452,10 @@ class Utilitarios:
         return None
 
     @staticmethod
-    def formatar_numero(v: float, casas: int = 0) -> str:
-        """Formata números inteiros no padrão brasileiro."""
+    def formatar_numero(v: float, casas: int = 2) -> str:
+        """Formata números inteiros ou decimais no padrão brasileiro."""
         if pd.isna(v):
-            return "0"
+            return "0,00" if casas > 0 else "0"
         return f"{v:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     @staticmethod
@@ -638,7 +638,7 @@ class ProcessamentoAdmin:
             base[col_tec].map(dias_trab).fillna(dias_passados).astype(int)
         )
 
-        # Métricas derivadas
+        # Métricas derivadas (todas preservando float preciso para as duas casas decimais)
         base["Média/Dia"] = base["Total Pontos"] / base["Dias Trab"]
         base["Média/O.S."] = base["Total Pontos"] / base["Qtd O.S."].replace(0, 1)
         base["Projeção"] = base["Total Pontos"] + (base["Média/Dia"] * dias_brutos)
@@ -885,11 +885,23 @@ with st.container(border=True):
         with f2:
             st.write("")
 
-    # ── Filtro de Projeto ──
+    # ── Filtro de Projeto (Pré-filtrado em NET-ABCDM) ──
     with f3:
         if col_projeto and col_projeto in df_raw.columns:
             projetos = sorted(df_raw[col_projeto].dropna().unique().tolist())
-            projeto_sel = st.selectbox("📁 Projetos", ["Todos", *projetos])
+            opcoes_projetos = ["Todos", *projetos]
+
+            # Identifica a posição de "NET-ABCDM" nas opções (ignora espaços extras e case sensitivity)
+            target_proj = "NET-ABCDM"
+            index_padrao = 0
+            for idx, op in enumerate(opcoes_projetos):
+                if str(op).strip().upper() == target_proj:
+                    index_padrao = idx
+                    break
+
+            projeto_sel = st.selectbox(
+                "📁 Projetos", opcoes_projetos, index=index_padrao
+            )
             if projeto_sel != "Todos":
                 mask_data &= df_raw[col_projeto] == projeto_sel
         else:
@@ -945,8 +957,8 @@ tec_acima_400 = 0
 tec_criticos = 0
 if total_tecnicos > 0:
     pts_por_tec = df_filtered.groupby(col_tec)[col_pontos].sum()
-    tec_acima_400 = int((pts_por_tec >= 400).sum())
-    tec_criticos = int(((pts_por_tec >= 275) & (pts_por_tec < 300)).sum())
+    tec_acima_400 = int((pts_por_tec >= 400.00).sum())
+    tec_criticos = int(((pts_por_tec >= 275.00) & (pts_por_tec < 300.00)).sum())
 
 render_section_header("📊", "Visão Geral da Operação")
 k1, k2, k3, k4, k5 = st.columns(5)
@@ -954,9 +966,9 @@ with k1:
     st.markdown(
         _card(
             "Total de Pontos",
-            Utilitarios.formatar_numero(total_pontos),
+            Utilitarios.formatar_numero(total_pontos, casas=2),
             "azul",
-            f"Prod: {Utilitarios.formatar_numero(pts_prod)} | Gpon: {Utilitarios.formatar_numero(pts_gpon)}",
+            f"Prod: {Utilitarios.formatar_numero(pts_prod, casas=2)} | Gpon: {Utilitarios.formatar_numero(pts_gpon, casas=2)}",
             "🎯",
         ),
         unsafe_allow_html=True,
@@ -986,7 +998,7 @@ with k3:
 with k4:
     st.markdown(
         _card(
-            "Elite (≥ 400 pts)",
+            "Elite (≥ 400,00 pts)",
             f"{tec_acima_400}/{total_tecnicos}",
             "escuro",
             "Técnicos que já bateram a meta principal",
@@ -997,10 +1009,10 @@ with k4:
 with k5:
     st.markdown(
         _card(
-            "Próximo da Meta (275–300)",
+            "Próximo da Meta (275-300)",
             str(tec_criticos),
             "vermelho" if tec_criticos > 0 else "verde",
-            f"{(tec_criticos / max(total_tecnicos, 1) * 100):.0f}% da equipe",
+            f"{(tec_criticos / max(total_tecnicos, 1) * 100):.1f}% da equipe",
             "⚠️",
         ),
         unsafe_allow_html=True,
@@ -1011,8 +1023,8 @@ st.write("---")
 # ====================================================
 # 13. TABS PRINCIPAIS
 # ====================================================
-tab_visao_geral, tab_equipes, tab_graficos, tab_consultivo, tab_logins = st.tabs(
-    ["🏆 Visão Geral", "👥 Por Equipe", "📈 Gráficos", "💼 Consultivo", "🔐 Logins"]
+tab_visao_geral, tab_equipes, tab_graficos, tab_diagnostico, tab_logins = st.tabs(
+    ["🏆 Visão Geral", "👥 Por Equipe", "📈 Gráficos", "📊 Diagnóstico", "🔐 Logins"]
 )
 
 # ── TAB 1: RANKING GERAL ──
@@ -1032,9 +1044,9 @@ with tab_visao_geral:
     )
     df_ranking["Status"] = np.select(
         [
-            df_ranking["Total Pontos"] >= 400,
-            df_ranking["Total Pontos"] >= 300,
-            df_ranking["Total Pontos"] >= 275,
+            df_ranking["Total Pontos"] >= 400.00,
+            df_ranking["Total Pontos"] >= 300.00,
+            df_ranking["Total Pontos"] >= 275.00,
         ],
         ["🏆 Elite", "✅ Meta", "🎯 Próximo da Meta"],
         default="🔴 Crítico",
@@ -1046,7 +1058,7 @@ with tab_visao_geral:
         st.markdown(
             _card(
                 "Projeção Média Equipe",
-                Utilitarios.formatar_numero(proj_media),
+                Utilitarios.formatar_numero(proj_media, casas=2),
                 "escuro",
                 "Fim do mês estimado",
                 "📈",
@@ -1055,13 +1067,13 @@ with tab_visao_geral:
         )
     with r2:
         top1 = df_ranking.iloc[0][col_tec] if not df_ranking.empty else "—"
-        top1_pts = df_ranking.iloc[0]["Total Pontos"] if not df_ranking.empty else 0
+        top1_pts = df_ranking.iloc[0]["Total Pontos"] if not df_ranking.empty else 0.00
         st.markdown(
             _card(
                 "Top 1 Técnico",
                 str(top1).title(),
                 "laranja",
-                f"{Utilitarios.formatar_numero(top1_pts)} pts",
+                f"{Utilitarios.formatar_numero(top1_pts, casas=2)} pts",
                 "🥇",
             ),
             unsafe_allow_html=True,
@@ -1102,14 +1114,14 @@ with tab_visao_geral:
     col_config = {
         "Posição": st.column_config.TextColumn("Posição"),
         "Dias Trab": st.column_config.NumberColumn("Dias Trab.", format="%d"),
-        col_tec: st.column_config.TextColumn("Nome Equipe"),
+        col_tec: st.column_config.TextColumn("Nome Técnico"),
         col_supervisor: st.column_config.TextColumn("Supervisor"),
         "Status": st.column_config.TextColumn("Status"),
         "Qtd O.S.": st.column_config.NumberColumn("📋 O.S.", format="%d"),
-        "Total Pontos": st.column_config.NumberColumn("🎯 Pontos", format="%.0f"),
-        "Média/Dia": st.column_config.NumberColumn("⚡ Méd/Dia", format="%.0f"),
-        "Média/O.S.": st.column_config.NumberColumn("📊 Méd/O.S.", format="%.0f"),
-        "Projeção": st.column_config.NumberColumn("📈 Projeção", format="%.0f"),
+        "Total Pontos": st.column_config.NumberColumn("🎯 Pontos", format="%.2f"),
+        "Média/Dia": st.column_config.NumberColumn("⚡ Méd/Dia", format="%.2f"),
+        "Média/O.S.": st.column_config.NumberColumn("📊 Méd/O.S.", format="%.2f"),
+        "Projeção": st.column_config.NumberColumn("📈 Projeção", format="%.2f"),
     }
 
     st.dataframe(
@@ -1132,13 +1144,13 @@ with tab_equipes:
                 hide_index=True,
                 column_config={
                     "Total Pontos": st.column_config.NumberColumn(
-                        "🎯 Total Pontos", format="%.0f"
+                        "🎯 Total Pontos", format="%.2f"
                     ),
                     "Média Pontos": st.column_config.NumberColumn(
-                        "📊 Média/Téc", format="%.0f"
+                        "📊 Média/Téc", format="%.2f"
                     ),
                     "Projeção Média": st.column_config.NumberColumn(
-                        "📈 Projeção Méd", format="%.0f"
+                        "📈 Projeção Méd", format="%.2f"
                     ),
                     "Qtd O.S. Total": st.column_config.NumberColumn(
                         "📋 O.S.", format="%d"
@@ -1185,12 +1197,12 @@ with tab_graficos:
                 y=top15[col_tec].astype(str).str.title(),
                 orientation="h",
                 marker_color=np.where(
-                    top15["Total Pontos"] >= 400,
+                    top15["Total Pontos"] >= 400.00,
                     "#012869",
                     np.where(
-                        top15["Total Pontos"] >= 300,
+                        top15["Total Pontos"] >= 300.00,
                         "#22C55E",
-                        np.where(top15["Total Pontos"] >= 275, "#F97316", "#EF4444"),
+                        np.where(top15["Total Pontos"] >= 275.00, "#F97316", "#EF4444"),
                     ),
                 ),
                 text=top15["Total Pontos"].apply(lambda x: f"{x:.2f}"),
@@ -1217,12 +1229,16 @@ with tab_graficos:
                 opacity=0.8,
             )
         )
-        for meta, cor in [(300, "#22C55E"), (350, "#F97316"), (400, "#012869")]:
+        for meta, cor in [
+            (300.00, "#22C55E"),
+            (350.00, "#F97316"),
+            (400.00, "#012869"),
+        ]:
             fig_hist.add_vline(
                 x=meta,
                 line_dash="dash",
                 line_color=cor,
-                annotation_text=f"Meta {meta}",
+                annotation_text=f"Meta {meta:.1f}",
                 annotation_position="top",
             )
         fig_hist.update_layout(
@@ -1235,10 +1251,195 @@ with tab_graficos:
         st.plotly_chart(
             fig_hist, use_container_width=True, config={"displayModeBar": False}
         )
-        
-# ── TAB 4: CONSULTIVO ──
-with tab_consultivo:
-    render_section_header("💼", "Consultivo")
+
+# ── TAB 4: DIAGNÓSTICO ──
+with tab_diagnostico:
+    render_section_header("📊", "Painel de Diagnóstico")
+
+    # 1. Visão de Supervisores e Coach de Lideranças
+    if col_supervisor and col_supervisor in df_ranking.columns:
+        st.subheader("👥 Matriz de Liderança e Eficiência")
+        df_supervisores = (
+            df_ranking.groupby(col_supervisor)
+            .agg(
+                Tecnicos=("Posição", "count"),
+                Total_Pontos=("Total Pontos", "sum"),
+                Media_Pontos=("Total Pontos", "mean"),
+                OS_Totais=("Qtd O.S.", "sum"),
+            )
+            .reset_index()
+        )
+        # Índice de Eficiência: pontos por O.S. média
+        df_supervisores["Pontos por O.S."] = df_supervisores[
+            "Total_Pontos"
+        ] / df_supervisores["OS_Totais"].replace(0, 1)
+        df_supervisores = df_supervisores.sort_values("Total_Pontos", ascending=False)
+
+        sc1, sc2 = st.columns([1.5, 1])
+        with sc1:
+            st.dataframe(
+                df_supervisores,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    col_supervisor: st.column_config.TextColumn("Supervisor"),
+                    "Tecnicos": st.column_config.NumberColumn(
+                        "👷 Técnicos Ativos", format="%d"
+                    ),
+                    "Total_Pontos": st.column_config.NumberColumn(
+                        "🎯 Total Pontos", format="%.2f"
+                    ),
+                    "Media_Pontos": st.column_config.NumberColumn(
+                        "📊 Média/Téc", format="%.2f"
+                    ),
+                    "OS_Totais": st.column_config.NumberColumn(
+                        "📋 O.S. Realizadas", format="%d"
+                    ),
+                    "Pontos por O.S.": st.column_config.NumberColumn(
+                        "⚡ Eficiência (Pts/O.S.)", format="%.2f"
+                    ),
+                },
+            )
+        with sc2:
+            fig_eff = px.bar(
+                df_supervisores,
+                x="Pontos por O.S.",
+                y=col_supervisor,
+                orientation="h",
+                color="Pontos por O.S.",
+                color_continuous_scale="Purples",
+                title="Eficiência (Pontos por O.S.)",
+                text_auto=True,
+            )
+            fig_eff.update_traces(texttemplate="%{x:.2f}")
+            fig_eff.update_layout(
+                margin=dict(l=0, r=10, t=30, b=0),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(
+                fig_eff, use_container_width=True, config={"displayModeBar": False}
+            )
+
+    st.divider()
+
+    # 2. Plano de Intervenção: Alerta de Técnicos Críticos
+    st.subheader("🚨 Plano de Recuperação de Performance")
+    st.info(
+        "🎯 Alvo: Técnicos com menos de 300,00 pontos acumulados no mês que necessitam de treinamento."
+    )
+
+    criticos_reais = df_ranking[df_ranking["Total Pontos"] < 300.00].copy()
+    if not criticos_reais.empty:
+        criticos_reais["Falta para Meta"] = 300.00 - criticos_reais["Total Pontos"]
+        cols_criticas = ["Posição", col_tec]
+        if col_supervisor and col_supervisor in criticos_reais.columns:
+            cols_criticas.append(col_supervisor)
+        cols_criticas += ["Total Pontos", "Falta para Meta", "Média/Dia", "Projeção"]
+
+        st.dataframe(
+            criticos_reais[cols_criticas],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Posição": st.column_config.TextColumn("Pos."),
+                "Total Pontos": st.column_config.NumberColumn(
+                    "🎯 Pontos Atuais", format="%.2f"
+                ),
+                "Falta para Meta": st.column_config.NumberColumn(
+                    "⚠️ Falta p/ Meta", format="%.2f"
+                ),
+                "Média/Dia": st.column_config.NumberColumn(
+                    "⚡ Média/Dia", format="%.2f"
+                ),
+                "Projeção": st.column_config.NumberColumn(
+                    "📈 Projeção Fim de Mês", format="%.2f"
+                ),
+                **(
+                    {col_tec: st.column_config.TextColumn("Técnico em Risco")}
+                    if col_tec
+                    else {}
+                ),
+                **(
+                    {
+                        col_supervisor: st.column_config.TextColumn(
+                            "Supervisor Responsável"
+                        )
+                    }
+                    if col_supervisor
+                    else {}
+                ),
+            },
+        )
+    else:
+        st.success(
+            "🎉 Incrível! 100% da equipe ativa atingiu o patamar mínimo de 300,00 pontos!"
+        )
+
+    st.divider()
+
+    # 3. Ficha de Diagnóstico Individual Detalhado do Técnico
+    st.subheader("🔍 Ficha de Diagnóstico Individual")
+    lista_tecnicos = sorted(df_ranking[col_tec].dropna().unique().tolist())
+
+    if lista_tecnicos:
+        tec_selecionado = st.selectbox(
+            "Selecione um técnico para emitir o diagnóstico", lista_tecnicos
+        )
+        ficha_tec = df_ranking[df_ranking[col_tec] == tec_selecionado].iloc[0]
+
+        # Bloco de Métricas do Técnico
+        c_diag1, c_diag2, c_diag3, c_diag4 = st.columns(4)
+        with c_diag1:
+            st.metric("🏆 Posição em relação a Base", f"#{ficha_tec['Posição']}")
+        with c_diag2:
+            st.metric("🎯 Pontuação Total", f"{ficha_tec['Total Pontos']:.2f} pts")
+        with c_diag3:
+            st.metric(
+                "📋 Produtividade Média", f"{ficha_tec['Média/O.S.']:.2f} pts/O.S."
+            )
+        with c_diag4:
+            st.metric("📈 Estimativa Fim de Mês", f"{ficha_tec['Projeção']:.2f} pts")
+
+        # Barra de Progresso Visual de Metas
+        pts_atual = float(ficha_tec["Total Pontos"])
+        pct_meta = min(1.00, pts_atual / 400.00)
+
+        st.write("")
+        st.markdown(
+            f"**Progresso para a Meta Principal (400,00 Pontos):** {pct_meta*100:.1f}%"
+        )
+        st.progress(pct_meta)
+
+        # Histórico temporal do técnico selecionado (se coluna de data existir)
+        if col_data and col_data in df_filtered.columns:
+            df_tec_data = df_filtered[df_filtered[col_tec] == tec_selecionado].copy()
+            df_tec_data_agrupado = (
+                df_tec_data.groupby(col_data)[col_pontos]
+                .sum()
+                .reset_index()
+                .sort_values(col_data)
+            )
+
+            fig_evol = px.line(
+                df_tec_data_agrupado,
+                x=col_data,
+                y=col_pontos,
+                title=f"Evolução Diária de Produção — {tec_selecionado}",
+                labels={col_data: "Data", col_pontos: "Pontos do Dia"},
+                markers=True,
+            )
+            fig_evol.update_traces(line_color="#F97316", marker=dict(size=8))
+            fig_evol.update_layout(
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                yaxis=dict(showgrid=True, gridcolor="rgba(0,0,0,0.05)"),
+            )
+            st.plotly_chart(
+                fig_evol, use_container_width=True, config={"displayModeBar": False}
+            )
+    else:
+        st.info("Sem técnicos disponíveis para emitir diagnóstico.")
 
 # ── TAB 5: CRUD DE LOGINS ──
 with tab_logins:
@@ -1283,8 +1484,18 @@ with tab_logins:
         elif len(senha.strip()) < 6:
             st.error("A senha deve possuir no mínimo 6 caracteres.")
         elif (
-            df_users["Login"].astype(str).str.strip().str.upper().eq(login_limpo.upper()).any()
-            or df_users["User"].astype(str).str.strip().str.upper().eq(user_limpo.upper()).any()
+            df_users["Login"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .eq(login_limpo.upper())
+            .any()
+            or df_users["User"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .eq(user_limpo.upper())
+            .any()
         ):
             st.error("Login ou User já cadastrado.")
         else:
@@ -1327,9 +1538,11 @@ with tab_logins:
                 perfil_editado = st.selectbox(
                     "Perfil",
                     opcoes_perfil,
-                    index=opcoes_perfil.index(perfil_atual)
-                    if perfil_atual in opcoes_perfil
-                    else 0,
+                    index=(
+                        opcoes_perfil.index(perfil_atual)
+                        if perfil_atual in opcoes_perfil
+                        else 0
+                    ),
                 )
             senha_editada = st.text_input(
                 "Nova senha (deixe vazio para manter)", type="password"
@@ -1341,7 +1554,10 @@ with tab_logins:
         if salvar_edicao:
             user_editado_limpo = user_editado.strip()
             outros_users = df_users.index[
-                (df_users["User"].astype(str).str.strip().str.upper() == user_editado_limpo.upper())
+                (
+                    df_users["User"].astype(str).str.strip().str.upper()
+                    == user_editado_limpo.upper()
+                )
                 & (df_users.index != indice)
             ]
             if not tecnico_editado.strip() or not user_editado_limpo:

@@ -185,10 +185,13 @@ def render_tabela_consulta():
                 | df_display["Login"]
                 .astype(str)
                 .str.contains(search, case=False, na=False)
+                | df_display["User"]
+                .astype(str)
+                .str.contains(search, case=False, na=False)
             ]
 
         colunas_para_remover = [
-            col for col in ["Pass", "User"] if col in df_display.columns
+            col for col in ["Pass"] if col in df_display.columns
         ]
         if colunas_para_remover:
             df_display = df_display.drop(columns=colunas_para_remover)
