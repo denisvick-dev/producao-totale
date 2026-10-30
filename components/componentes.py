@@ -854,40 +854,38 @@ def render_kpi(
         delta_html = (
             f'<div class="kpi-delta" style="font-family:{FONTE_TEXTO};font-size:12px;'
             f'color:{cor_delta};font-weight:700;margin-top:8px;'
-            f'font-variant-numeric:tabular-nums;">{seta} {delta}</div>'
+            f'font-variant-numeric:tabular-nums;">{seta} {html.escape(str(delta))}</div>'
         )
 
-    col.markdown(
-        textwrap.dedent(
-            f"""
+    # st.html bypasses Markdown's block parsing, which can turn nested divs
+    # into literal code blocks (the issue seen in the Consultivo dashboard).
+    card_html = textwrap.dedent(
+        f"""
         <div class="kpi-card" style="border-left-color:{cor};background:{fundo};">
-            <div class="kpi-label">{label}</div>
-            <div class="kpi-value" style="color:{cor};">{valor}</div>
+            <div class="kpi-label">{html.escape(str(label))}</div>
+            <div class="kpi-value" style="color:{cor};">{html.escape(str(valor))}</div>
             {delta_html}
-            <div class="kpi-sub">{sub}</div>
+            <div class="kpi-sub">{html.escape(str(sub))}</div>
         </div>
         """
-        ).strip(),
-        unsafe_allow_html=True,
-    )
+    ).strip()
+    col.html(card_html)
 
 
 def render_kpi_sm(
     container: Any, label: str, valor: str, sub: str = "", tema: TemaKPI = "azul"
 ) -> None:
     cor = _resolver_cor_tema(tema)
-    container.markdown(
-        textwrap.dedent(
-            f"""
+    card_html = textwrap.dedent(
+        f"""
         <div style="background:white;border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--cor-borda);border-left:3px solid {cor};margin-bottom:8px;box-shadow:var(--shadow-sm);">
-            <div style="font-family:{FONTE_TEXTO};font-size:10px;color:var(--cor-texto-3);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">{label}</div>
-            <div style="font-family:{FONTE_TITULO};font-size:20px;color:{cor};font-weight:800;line-height:1.2;margin-top:4px;font-variant-numeric:tabular-nums;">{valor}</div>
-            <div style="font-family:{FONTE_TEXTO};font-size:11px;color:var(--cor-texto-3);margin-top:2px;">{sub}</div>
+            <div style="font-family:{FONTE_TEXTO};font-size:10px;color:var(--cor-texto-3);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">{html.escape(str(label))}</div>
+            <div style="font-family:{FONTE_TITULO};font-size:20px;color:{cor};font-weight:800;line-height:1.2;margin-top:4px;font-variant-numeric:tabular-nums;">{html.escape(str(valor))}</div>
+            <div style="font-family:{FONTE_TEXTO};font-size:11px;color:var(--cor-texto-3);margin-top:2px;">{html.escape(str(sub))}</div>
         </div>
         """
-        ).strip(),
-        unsafe_allow_html=True,
-    )
+    ).strip()
+    container.html(card_html)
 
 
 def render_insight(msg: str, tipo: TipoInsight = "info") -> None:
@@ -1351,7 +1349,7 @@ def render_sidebar_portal(
     )
 
     with st.sidebar:
-        st.markdown(
+        st.html(
             textwrap.dedent(
                 f"""
                 <div style="background:{fundo};
@@ -1393,7 +1391,6 @@ def render_sidebar_portal(
                 </div>
                 """
             ).strip(),
-            unsafe_allow_html=True,
         )
 
         if st.button("🚪 Encerrar Sessão", width="stretch", key="btn_logout_portal"):
