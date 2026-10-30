@@ -36,7 +36,10 @@ centralizados em `utils/_config.py`.
 ## Painel de Indicadores
 
 `pages/indicadores.py` cruza seis abas operacionais com a Lista de Ativos e
-oferece visão consolidada, drill-down por técnico e um painel por indicador.
+mostra **apenas os registros do técnico logado**: visão consolidada dos seis
+indicadores, plano de ação com as ocorrências individuais e um painel por
+indicador. O login da sessão é aplicado como filtro antes do merge, então a
+página não expõe dados de outros profissionais.
 
 A planilha de indicadores precisa conter as abas `Geoloc_Os`,
 `Aderencia_Ura`, `Nr35`, `Tec1` e `Baixa_Pda` (o indicador O.S. Digital é
