@@ -1,13 +1,13 @@
 # pages/consultivo.py
 import io
 import locale
-import requests
-import textwrap
+from typing import ClassVar
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from typing import Optional, List
+import requests
 import streamlit as st
 
 # ====================================================
@@ -35,10 +35,10 @@ try:
     from components.componentes import (
         aplicar_estilo,
         aplicar_tema_claro,
-        render_hero_totale_1,
         injetar_css_menu_nomes,
-        render_kpi,
+        render_hero_totale_1,
         render_insight,
+        render_kpi,
         render_sidebar_portal,
     )
 except ImportError:
@@ -60,25 +60,8 @@ configurar_locale()
 
 
 # ====================================================
-# 4. CSS DO MENU E SIDEBAR (IDÊNTICO À IMAGEM)
+# 4. SIDEBAR PADRONIZADA
 # ====================================================
-def injetar_css_menu_sidebar():
-    st.markdown(
-        textwrap.dedent(
-            """
-        <style>
-        /* Fundo Geral do Sidebar */
-        section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #F4F5F7 0%, #FFFFFF 100%) !important;
-            border-right: 1px solid #E2E8F0 !important;
-        }
-        </style>
-        """
-        ).strip(),
-        unsafe_allow_html=True,
-    )
-
-
 def render_sidebar_perfil() -> None:
     render_sidebar_portal(
         nome=nome_logado,
@@ -93,7 +76,7 @@ def render_sidebar_perfil() -> None:
 # 5. CLASSES DO MOTOR DE PROCESSAMENTO DE DADOS
 # ====================================================
 class ProcessadorDeDados:
-    VAZIOS = ["-", "N/A", "nan", "None", "NaN", "null"]
+    VAZIOS: ClassVar[list[str]] = ["-", "N/A", "nan", "None", "NaN", "null"]
 
     @staticmethod
     def _normalizar_serie(serie: pd.Series) -> pd.Series:
@@ -186,10 +169,10 @@ class Calculos:
         fim_mes = prox_mes - pd.Timedelta(days=prox_mes.day)
 
         dias_uteis_total = len(
-            [d for d in pd.date_range(inicio_mes, fim_mes) if d.dayofweek < 6]
+            [d for d in pd.date_range(inicio_mes, fim_mes) if d.day_of_week < 6]
         )
         dias_decorridos = len(
-            [d for d in pd.date_range(inicio_mes, hoje) if d.dayofweek < 6]
+            [d for d in pd.date_range(inicio_mes, hoje) if d.day_of_week < 6]
         )
         faltantes = dias_uteis_total - dias_decorridos
 
@@ -203,7 +186,7 @@ class Calculos:
 
 class Utilitarios:
     @staticmethod
-    def buscar_coluna(df: pd.DataFrame, palavras: List[str]) -> Optional[str]:
+    def buscar_coluna(df: pd.DataFrame, palavras: list[str]) -> str | None:
         cols = {str(c).strip().upper(): c for c in df.columns}
         for p in palavras:
             chave = str(p).strip().upper()
@@ -337,6 +320,32 @@ class Graficos:
 FILE_ID_CONSULTIVO = "1YOWJ0HuGcEP2vJaZwl2kcgrtNgsoMBDs"
 
 
+def _ler_planilha(conteudo: bytes) -> pd.DataFrame:
+    """Interpreta o binário baixado como CSV (3 dialetos) ou XLSX.
+
+    Cada tentativa usa um ``BytesIO`` novo: reaproveitar o mesmo buffer fazia
+    o ``read_csv``/``read_excel`` continuar da posição deixada pela tentativa
+    anterior, o que podia devolver uma base truncada.
+    """
+    for kwargs in (
+        {"sep": None, "engine": "python", "encoding": "utf-8"},
+        {"sep": ";", "encoding": "latin-1"},
+        {"sep": ",", "encoding": "utf-8"},
+    ):
+        try:
+            df = pd.read_csv(io.BytesIO(conteudo), **kwargs)
+            if not df.empty and df.shape[1] > 1:
+                return df
+        except (ValueError, UnicodeDecodeError, pd.errors.ParserError):
+            continue
+
+    try:
+        df = pd.read_excel(io.BytesIO(conteudo), engine="openpyxl")
+    except Exception:
+        return pd.DataFrame()
+    return df if not df.empty else pd.DataFrame()
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def carregar_e_processar_base() -> pd.DataFrame:
     urls = [
@@ -346,30 +355,14 @@ def carregar_e_processar_base() -> pd.DataFrame:
     df_bruto = pd.DataFrame()
     for url in urls:
         try:
-            resp = requests.get(url, timeout=30)
-            if resp.status_code == 200 and len(resp.content) > 100:
-                bio = io.BytesIO(resp.content)
-                for reader in (
-                    lambda: pd.read_csv(
-                        bio, sep=None, engine="python", encoding="utf-8"
-                    ),
-                    lambda: (
-                        bio.seek(0),
-                        pd.read_csv(bio, sep=";", encoding="latin-1"),
-                    )[1],
-                    lambda: (bio.seek(0), pd.read_excel(bio, engine="openpyxl"))[1],
-                ):
-                    try:
-                        df = reader()
-                        if not df.empty and df.shape[1] > 1:
-                            df_bruto = df
-                            break
-                    except Exception:
-                        continue
-                if not df_bruto.empty:
-                    break
-        except Exception:
+            resp = requests.get(url, timeout=(5, 20))
+        except requests.RequestException:
             continue
+        if resp.status_code != 200 or len(resp.content) <= 100:
+            continue
+        df_bruto = _ler_planilha(resp.content)
+        if not df_bruto.empty:
+            break
 
     if df_bruto.empty:
         return df_bruto
@@ -386,7 +379,6 @@ def carregar_e_processar_base() -> pd.DataFrame:
 # ====================================================
 aplicar_estilo()
 aplicar_tema_claro()
-injetar_css_menu_sidebar()
 injetar_css_menu_nomes()
 render_sidebar_perfil()
 
@@ -521,7 +513,7 @@ with g_linha:
                 Graficos.grafico_linhas_vendas(
                     df_tempo, "DIA", "CONSULTIVOS", "VENDAS"
                 ),
-                use_container_width=True,
+                width="stretch",
             )
     else:
         render_insight("Coluna de data não encontrada na base.", "alerta")
@@ -533,6 +525,6 @@ with g_pizza:
     )
     df_mix = df_mix[df_mix["Quantidade"] > 0]
     if not df_mix.empty:
-        st.plotly_chart(Graficos.grafico_rosca_mix(df_mix), use_container_width=True)
+        st.plotly_chart(Graficos.grafico_rosca_mix(df_mix), width="stretch")
     else:
         render_insight("Nenhum produto (Mesh/TV/Virtua) vendido no período.", "ok")

@@ -1,10 +1,12 @@
 # streamlit_app.py
+import textwrap
 import time
+
 import pandas as pd
 import streamlit as st
+
 from utils._auth import AuthManager
 from utils._database import get_db
-import textwrap
 
 # ====================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -203,7 +205,7 @@ def render_tabela_consulta():
         if colunas_para_remover:
             df_display = df_display.drop(columns=colunas_para_remover)
 
-        st.dataframe(df_display, use_container_width=True, hide_index=True, height=290)
+        st.dataframe(df_display, width="stretch", hide_index=True, height=290)
     else:
         st.warning("Aguarde um momento ou tente recarregar a página.")
 
@@ -212,7 +214,7 @@ def render_tabela_consulta():
 # TELA 1: LOGIN
 # ====================================================
 def tela_login() -> None:
-    col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns(
+    _col_vazia_esq, col_form, col_tabela, _col_vazia_dir = st.columns(
         [0.1, 2.5, 3.5, 0.1], gap="large"
     )
 
@@ -226,7 +228,7 @@ def tela_login() -> None:
                 "Login ou User", placeholder="Ex: Z659935 ou DENIS.ADMIN"
             )
             password = st.text_input("Senha", type="password", placeholder="••••••••")
-            submit = st.form_submit_button("AUTENTICAR", use_container_width=True)
+            submit = st.form_submit_button("AUTENTICAR", width="stretch")
 
             if submit:
                 if not identifier or not password:
@@ -245,7 +247,7 @@ def tela_login() -> None:
                         st.error(f"❌ {message}")
 
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Deseja alterar sua senha?", use_container_width=True):
+        if st.button("Deseja alterar sua senha?", width="stretch"):
             st.session_state["auth_view"] = "trocar_senha"
             st.rerun()
 
@@ -257,7 +259,7 @@ def tela_login() -> None:
 # TELA 2: TROCAR SENHA
 # ====================================================
 def tela_trocar_senha() -> None:
-    col_vazia_esq, col_form, col_tabela, col_vazia_dir = st.columns(
+    _col_vazia_esq, col_form, col_tabela, _col_vazia_dir = st.columns(
         [0.1, 2.5, 3.5, 0.1], gap="large"
     )
 
@@ -285,7 +287,7 @@ def tela_trocar_senha() -> None:
                 placeholder="Repita a nova senha",
             )
             submit = st.form_submit_button(
-                "SALVAR NOVA SENHA", use_container_width=True
+                "SALVAR NOVA SENHA", width="stretch"
             )
 
             if submit:
@@ -297,7 +299,7 @@ def tela_trocar_senha() -> None:
                     st.error("⚠️ A nova senha deve ter pelo menos 6 caracteres!")
                 else:
                     with st.spinner("Validando dados..."):
-                        is_valid_user, auth_message = auth.login(identifier, old_pass)
+                        is_valid_user, _auth_message = auth.login(identifier, old_pass)
 
                     if not is_valid_user:
                         st.error("❌ A senha atual informada está incorreta.")
@@ -320,7 +322,7 @@ def tela_trocar_senha() -> None:
             "<p style='text-align:center;font-size:12px;color:#94A3B8;margin-top:10px;'>Esqueceu sua senha? Solicite o reset ao seu supervisor.</p>",
             unsafe_allow_html=True,
         )
-        if st.button("← Voltar para o Login", use_container_width=True):
+        if st.button("← Voltar para o Login", width="stretch"):
             st.session_state["auth_view"] = "login"
             st.rerun()
 

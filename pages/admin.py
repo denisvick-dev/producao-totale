@@ -1,23 +1,25 @@
 # pages/admin.py
-import io
 import calendar
 import datetime
+import io
 import locale
-import requests
+import textwrap
 from datetime import timedelta
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, ClassVar
+
+import bcrypt
 import numpy as np
 import pandas as pd
-import bcrypt
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
+import requests
 import streamlit as st
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+
 from utils._config import HEADERS_USERS
 from utils._database import get_db
-import textwrap
 
 # ====================================================
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -68,11 +70,11 @@ try:
     from components.componentes import (
         aplicar_estilo,
         aplicar_tema_claro,
-        render_sidebar_portal,
+        injetar_css_menu_nomes,
         render_hero_totale_1,
         render_insight,
         render_section_header,
-        injetar_css_menu_nomes,
+        render_sidebar_portal,
     )
 except ImportError:
     st.error("⚠️ Módulo 'componentes.py' não encontrado.")
@@ -132,7 +134,8 @@ def injetar_css_admin() -> None:
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a > span:last-child::before {
             color: #F8FAFC !important;
         }
-        .btn-logout-portal button {
+        .btn-logout-portal button,
+        .st-key-btn_logout_portal button {
             background: linear-gradient(180deg, #334155 0%, #1E293B 100%) !important;
             border: 1px solid #475569 !important;
             color: #F8FAFC !important;
@@ -140,7 +143,8 @@ def injetar_css_admin() -> None:
             border-radius: 8px !important;
             margin-top: 10px !important;
         }
-        .btn-logout-portal button:hover {
+        .btn-logout-portal button:hover,
+        .st-key-btn_logout_portal button:hover {
             background: #475569 !important; border-color: #F97316 !important;
         }
         .card-admin { position: relative; cursor: default; }
@@ -234,7 +238,7 @@ def carregar_base_producao() -> pd.DataFrame:
     ]
     for url in urls_xlsx:
         try:
-            resp = requests.get(url, timeout=35)
+            resp = requests.get(url, timeout=(5, 30))
             if resp.status_code == 200 and len(resp.content) > 100:
                 excel_file = pd.read_excel(
                     io.BytesIO(resp.content), sheet_name=None, engine="openpyxl"
@@ -260,7 +264,7 @@ def carregar_base_producao() -> pd.DataFrame:
     ]
     for url in urls_csv:
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=(5, 30))
             if resp.status_code == 200 and len(resp.content) > 100:
                 for sep_val, enc in ((None, "utf-8"), (";", "latin-1"), (",", "utf-8")):
                     try:
@@ -288,7 +292,7 @@ def carregar_lista_ativos() -> pd.DataFrame:
     ]
     for url in urls:
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=(5, 30))
         except requests.RequestException:
             continue
         if resp.status_code != 200 or len(resp.content) <= 100:
@@ -335,7 +339,7 @@ def carregar_base_consultivo() -> pd.DataFrame:
     )
     for url in urls:
         try:
-            resp = session.get(url, timeout=30, allow_redirects=True)
+            resp = session.get(url, timeout=(5, 30), allow_redirects=True)
             if resp.status_code == 200 and len(resp.content) > 100:
                 content = resp.content
                 if content.strip().startswith(
@@ -374,6 +378,7 @@ def carregar_base_consultivo() -> pd.DataFrame:
     return pd.DataFrame()
 
 
+@st.cache_data(ttl=600, show_spinner=False)
 def criar_dataframe_completo(
     df_main: pd.DataFrame, df_ativos: pd.DataFrame
 ) -> pd.DataFrame:
@@ -454,7 +459,7 @@ META_PRINCIPAL = 400.00
 
 class Utilitarios:
     @staticmethod
-    def buscar_coluna(df: pd.DataFrame, palavras_chave: List[str]) -> Optional[str]:
+    def buscar_coluna(df: pd.DataFrame, palavras_chave: list[str]) -> str | None:
         cols_upper = {str(c).upper().strip(): str(c) for c in df.columns}
         for palavra in palavras_chave:
             key = palavra.upper().strip()
@@ -520,8 +525,8 @@ class Utilitarios:
 
     @staticmethod
     def calcular_dias_uteis(
-        df: pd.DataFrame, col_data: Optional[str]
-    ) -> Tuple[int, int, Any, int]:
+        df: pd.DataFrame, col_data: str | None
+    ) -> tuple[int, int, Any, int]:
         data_referencia: Any = (
             pd.to_datetime(df[col_data].max()).date()
             if col_data and col_data in df.columns and pd.notna(df[col_data].max())
@@ -543,7 +548,7 @@ class Utilitarios:
         return brutos, max(1, brutos), data_referencia, passados
 
     @staticmethod
-    def exportar_excel(abas: Dict[str, pd.DataFrame]) -> bytes:
+    def exportar_excel(abas: dict[str, pd.DataFrame]) -> bytes:
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             for nome, df in abas.items():
@@ -585,7 +590,7 @@ class Utilitarios:
 
 
 class Configuracoes:
-    VAZIOS = {"", "NAN", "NAT", "NONE", "NULL", "-", "N/A"}
+    VAZIOS: ClassVar[set[str]] = {"", "NAN", "NAT", "NONE", "NULL", "-", "N/A"}
 
 
 class ProcessadorDeDados:
@@ -681,9 +686,9 @@ class ProcessamentoAdmin:
         dias_brutos: int,
         dias_seguros: int,
         dias_passados: int,
-        col_equipe: Optional[str] = None,
-        col_supervisor: Optional[str] = None,
-        col_origem: Optional[str] = None,
+        col_equipe: str | None = None,
+        col_supervisor: str | None = None,
+        col_origem: str | None = None,
     ) -> pd.DataFrame:
         group_cols = [col_tec]
         if col_equipe and col_equipe in df.columns and col_equipe not in group_cols:
@@ -736,7 +741,7 @@ class ProcessamentoAdmin:
     @staticmethod
     def resumo_equipes(
         df_ranking: pd.DataFrame, col_equipe: str
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         if col_equipe not in df_ranking.columns:
             return None
         return (
@@ -1498,7 +1503,7 @@ with tab_visao_geral:
     }
     st.dataframe(
         df_rank_display,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         height=500,
         column_config=col_config,
@@ -1516,7 +1521,7 @@ with tab_equipes:
         if df_eq is not None and not df_eq.empty:
             st.dataframe(
                 df_eq,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "Total Pontos": st.column_config.NumberColumn(
@@ -1553,7 +1558,7 @@ with tab_equipes:
                 paper_bgcolor="rgba(0,0,0,0)",
             )
             st.plotly_chart(
-                fig_eq, use_container_width=True, config={"displayModeBar": False}
+                fig_eq, width="stretch", config={"displayModeBar": False}
             )
         else:
             st.info("💡 Sem dados de equipe disponíveis.")
@@ -1600,7 +1605,7 @@ with tab_graficos:
                 xaxis=dict(showgrid=True, gridcolor="rgba(0,0,0,0.05)"),
             )
             st.plotly_chart(
-                fig_top, use_container_width=True, config={"displayModeBar": False}
+                fig_top, width="stretch", config={"displayModeBar": False}
             )
         with g2:
             st.subheader("📊 Distribuição de Pontos")
@@ -1632,7 +1637,7 @@ with tab_graficos:
                 paper_bgcolor="rgba(0,0,0,0)",
             )
             st.plotly_chart(
-                fig_hist, use_container_width=True, config={"displayModeBar": False}
+                fig_hist, width="stretch", config={"displayModeBar": False}
             )
 
 # ====================================================
@@ -1666,7 +1671,7 @@ with tab_diagnostico:
             with sc1:
                 st.dataframe(
                     df_supervisores,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                     column_config={
                         col_supervisor: st.column_config.TextColumn("Supervisor"),
@@ -1705,7 +1710,7 @@ with tab_diagnostico:
                     paper_bgcolor="rgba(0,0,0,0)",
                 )
                 st.plotly_chart(
-                    fig_eff, use_container_width=True, config={"displayModeBar": False}
+                    fig_eff, width="stretch", config={"displayModeBar": False}
                 )
 
         st.divider()
@@ -1725,7 +1730,7 @@ with tab_diagnostico:
             ]
             st.dataframe(
                 criticos_reais[cols_criticas],
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "Posição": st.column_config.TextColumn("Pos."),
@@ -1813,7 +1818,7 @@ with tab_diagnostico:
                     yaxis=dict(showgrid=True, gridcolor="rgba(0,0,0,0.05)"),
                 )
                 st.plotly_chart(
-                    fig_evol, use_container_width=True, config={"displayModeBar": False}
+                    fig_evol, width="stretch", config={"displayModeBar": False}
                 )
         else:
             st.info("Sem técnicos disponíveis.")
@@ -2119,7 +2124,7 @@ with tab_consultivo:
 
                 st.dataframe(
                     df_vend_rank,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                     column_config=col_config_vend,
                     height=420,
@@ -2154,7 +2159,7 @@ with tab_consultivo:
                     height=430,
                 )
                 st.plotly_chart(
-                    fig_vend, use_container_width=True, config={"displayModeBar": False}
+                    fig_vend, width="stretch", config={"displayModeBar": False}
                 )
                 st.divider()
 
@@ -2210,7 +2215,7 @@ with tab_consultivo:
                 )
                 st.plotly_chart(
                     fig_evol_cons,
-                    use_container_width=True,
+                    width="stretch",
                     config={"displayModeBar": False},
                 )
 
@@ -2242,7 +2247,7 @@ with tab_logins:
         df_users = pd.DataFrame(columns=HEADERS_USERS)
 
     colunas_publicas = ["Técnico", "Login", "User", "Perfil"]
-    st.dataframe(df_users[colunas_publicas], use_container_width=True, hide_index=True)
+    st.dataframe(df_users[colunas_publicas], width="stretch", hide_index=True)
 
     st.subheader("Adicionar login")
     with st.form("form_novo_login", clear_on_submit=True):

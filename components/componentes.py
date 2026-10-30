@@ -20,13 +20,13 @@ import html
 import logging
 import re
 import textwrap
-from typing import Any, Callable, Literal, Union
+from collections.abc import Callable
+from typing import Any, Literal
 
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
-import streamlit.components.v1 as components
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 TemaKPI = Literal["azul", "verde", "vermelho", "laranja", "cinza"]
 TipoInsight = Literal["ok", "info", "alerta", "critico", "acao"]
 
-BaseFormatter = Union[str, Callable[[object], str]]
+BaseFormatter = str | Callable[[object], str]
 FmtDict = dict[str, BaseFormatter | None]
 
 
@@ -187,8 +187,9 @@ def _injetar_fontes_no_head_pai() -> None:
     urls_js = ", ".join(f'"{u}"' for u in _GOOGLE_FONTS_URLS)
     preconnects_js = ", ".join(f'"{u}"' for u in _PRECONNECT_URLS)
 
-    components.html(
-        f"""
+    st.iframe(
+        textwrap.dedent(
+            f"""
         <script>
         (function injectCorporateFonts() {{
             let doc;
@@ -248,8 +249,10 @@ def _injetar_fontes_no_head_pai() -> None:
             }}
         }})();
         </script>
-        """,
-        height=0,
+        """
+        ).strip(),
+        width=1,
+        height=1,
     )
 
 
@@ -925,15 +928,24 @@ def render_progress_bar(
     if label:
         st.caption(str(label))
 
+    altura_px = {"pequeno": 6, "medio": 10, "grande": 14}.get(altura, 10)
+    barra = (
+        f'<div role="progressbar" aria-valuenow="{pct:.1f}" aria-valuemin="0" '
+        f'aria-valuemax="100" style="width:100%;height:{altura_px}px;'
+        'background:#E2E8F0;border-radius:999px;overflow:hidden;">'
+        f'<div style="width:{pct:.1f}%;height:100%;background:{cor};'
+        'border-radius:999px;transition:width 0.3s ease;"></div></div>'
+    )
+
     if mostrar_valor:
         col_barra, col_valor = st.columns([5, 1])
         with col_barra:
-            st.progress(pct / 100.0, text="")
+            st.markdown(barra, unsafe_allow_html=True)
         with col_valor:
             st.caption(f"{pct:.1f}%")
         return
 
-    st.progress(pct / 100.0, text="")
+    st.markdown(barra, unsafe_allow_html=True)
 
 
 _EMPTY_STATE_CONFIG: dict[str, tuple[str, str, str, str]] = {
@@ -1073,10 +1085,11 @@ def render_table_html(
     )
 
     linhas: list[str] = []
-    for _, row in df.iterrows():
+    # ``itertuples`` evita criar uma Series por linha (``iterrows``), o que
+    # pesa em tabelas grandes do painel administrativo.
+    for valores_linha in df[colunas_validas].itertuples(index=False, name=None):
         celulas: list[str] = []
-        for col in colunas_validas:
-            valor = row[col]
+        for col, valor in zip(colunas_validas, valores_linha):
             espec = fmt.get(col)
             texto = _formatar_valor_tabela(valor, espec)
 
@@ -1147,11 +1160,11 @@ def render_dataframe(
         fmt_valido: FmtDict = {c: f for c, f in fmt.items() if c in df.columns}
         if fmt_valido:
             try:
-                st.dataframe(df.style.format(fmt_valido), height=height, use_container_width=True, hide_index=True, **kwargs)  # type: ignore
+                st.dataframe(df.style.format(fmt_valido), height=height, width="stretch", hide_index=True, **kwargs)  # type: ignore
                 return
             except Exception:
                 logger.exception("Falha ao formatar DataFrame.")
-    st.dataframe(df, height=height, use_container_width=True, hide_index=True, **kwargs)
+    st.dataframe(df, height=height, width="stretch", hide_index=True, **kwargs)
     
 
 def render_icon(
@@ -1200,12 +1213,11 @@ def aplicar_tema_claro() -> None:
             background: linear-gradient(180deg, #FFFFFF 0%, #E8EEF2 100%) !important;
             border-right: 1px solid #E2E8F0 !important;
         }
-        section[data-testid="stSidebar"],
-        section[data-testid="stSidebar"] p,
-        section[data-testid="stSidebar"] label,
-        section[data-testid="stSidebar"] span,
-        section[data-testid="stSidebar"] div {
-            color: #1E293B !important;
+        /* A cor é herdada pelo container; não usamos !important nos
+           descendentes para preservar as cores inline dos chips, do status e
+           dos ícones renderizados por render_sidebar_portal(). */
+        section[data-testid="stSidebar"] {
+            color: #1E293B;
         }
 
         /* ── MENU DE NAVEGAÇÃO ── */
@@ -1255,7 +1267,8 @@ def aplicar_tema_claro() -> None:
         }
 
         /* ── BOTÃO LOGOUT (Estilo Prata) ── */
-        .btn-logout-portal button {
+        .btn-logout-portal button,
+        .st-key-btn_logout_portal button {
             background: linear-gradient(180deg, #E2E8F0 0%, #CBD5E1 100%) !important;
             border: 1px solid #94A3B8 !important;
             color: #1E293B !important;
@@ -1263,7 +1276,8 @@ def aplicar_tema_claro() -> None:
             border-radius: 8px !important;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.05) !important;
         }
-        .btn-logout-portal button:hover {
+        .btn-logout-portal button:hover,
+        .st-key-btn_logout_portal button:hover {
             background: #F1F5F9 !important;
             border-color: #64748B !important;
             color: #0F172A !important;
@@ -1382,14 +1396,11 @@ def render_sidebar_portal(
             unsafe_allow_html=True,
         )
 
-        st.markdown('<div class="btn-logout-portal">', unsafe_allow_html=True)
-        if st.button("🚪 Encerrar Sessão", use_container_width=True, key="btn_logout_portal"):
+        if st.button("🚪 Encerrar Sessão", width="stretch", key="btn_logout_portal"):
             st.session_state["authenticated"] = False
             st.session_state["user_info"] = {}
             st.session_state["is_admin"] = False
             st.switch_page(pagina_logout)
-        st.markdown("</div>", unsafe_allow_html=True)
-
         st.markdown(
             textwrap.dedent(
                 """

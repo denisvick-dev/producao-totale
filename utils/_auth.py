@@ -8,9 +8,10 @@ Processa validação de login, hash Bcrypt e alteração de senhas.
 from __future__ import annotations
 
 import logging
+
 import bcrypt
-import pandas as pd
 import streamlit as st
+
 from utils._database import get_db
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ class AuthManager:
 
         except Exception as err:
             logger.exception("Erro crítico no método login.")
-            return False, f"Erro interno de autenticação: {str(err)}"
+            return False, f"Erro interno de autenticação: {err!s}"
 
     def update_password(self, identifier: str, nova_senha: str) -> tuple[bool, str]:
         """
@@ -185,7 +186,7 @@ class AuthManager:
 
         except Exception as err:
             logger.exception("Erro crítico no método update_password.")
-            return False, f"Erro interno ao atualizar senha: {str(err)}"
+            return False, f"Erro interno ao atualizar senha: {err!s}"
 
     def logout(self) -> None:
         """Encerra a sessão ativa do usuário no Streamlit."""
