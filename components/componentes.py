@@ -302,6 +302,8 @@ def _injetar_css_global() -> None:
     [data-testid="stSidebarCollapseButton"] span,
     [data-testid="stExpanderToggleIcon"],
     [data-testid="stExpanderToggleIcon"] *,
+    [data-testid="stExpanderStepChevron"],
+    [data-testid="stExpanderStepChevron"] *,
     [data-testid="stHeaderActionElements"] span,
     [data-testid="StyledFullScreenButton"] span,
     [data-testid="StyledToolbarButton"] span,
@@ -452,9 +454,20 @@ def _injetar_css_global() -> None:
         font-family: var(--font-texto) !important;
         font-weight: 600 !important;
     }}
-    [data-testid="stExpander"] summary span {{
+    [data-testid="stExpander"] summary {{
         font-family: var(--font-titulo) !important;
         font-weight: 700 !important;
+    }}
+    [data-testid="stExpander"] summary [data-testid="stExpanderStepChevron"],
+    [data-testid="stExpander"] summary [data-testid="stExpanderStepChevron"] *,
+    [data-testid="stExpander"] summary [data-testid="stExpanderToggleIcon"],
+    [data-testid="stExpander"] summary [data-testid="stExpanderToggleIcon"] * {{
+        font-family: "Material Symbols Rounded",
+                     "Material Symbols Outlined",
+                     "Material Icons",
+                     "Material Icons Outlined" !important;
+        font-weight: normal !important;
+        font-size: 18px !important;
     }}
 
     /* ═══════════════════════════════════════════════════════════
@@ -1288,11 +1301,12 @@ def render_sidebar_portal(
     login: str = "",
     user: str = "",
     pagina_logout: str = "streamlit_app.py",
+    perfil: str = "",
+    tema: Literal["claro", "escuro"] = "claro",
 ) -> None:
-    """
-    Card de perfil do técnico logado no sidebar:
-    avatar com iniciais, badges Login/User, status Online,
-    botão Encerrar Sessão e rodapé corporativo.
+    """Card de perfil, logout e rodapé padronizados para todas as páginas.
+
+    ``tema="escuro"`` preserva a identidade visual do painel administrativo.
     """
     partes = [p for p in (nome or "").split() if p]
     if len(partes) >= 2:
@@ -1302,43 +1316,87 @@ def render_sidebar_portal(
     else:
         iniciais = "US"
 
+    escuro = tema == "escuro"
+    fundo = (
+        "linear-gradient(145deg, #1E293B 0%, #0F172A 100%)"
+        if escuro
+        else "linear-gradient(145deg, #FFFFFF 0%, #EDF0F4 100%)"
+    )
+    borda = "#334155" if escuro else "#CBD5E1"
+    cor_nome = "#F8FAFC" if escuro else "#012869"
+    cor_texto = "#CBD5E1" if escuro else "#475569"
+    cor_chip = "#F1F5F9" if escuro else "#0F172A"
+    fundo_chip = "#334155" if escuro else "#E2E8F0"
+    borda_chip = "#475569" if escuro else "#CBD5E1"
+    rotulo = "⚡ TOTALE · ADMIN" if escuro else "⚡ TOTALE · PORTAL"
+    status_fundo = "rgba(239,68,68,0.15)" if escuro else "#D1FAE5"
+    status_borda = "#EF4444" if escuro else "#6EE7B7"
+    status_texto = "#FCA5A5" if escuro else "#065F46"
+    status_dot = "#EF4444" if escuro else "#10B981"
+    status_label = "Sessão Admin" if escuro else "Online"
+
+    perfil_txt = (perfil or "").strip().upper()
+    mostrar_perfil = escuro or perfil_txt in {
+        "ADMIN",
+        "ADM",
+        "ADMINISTRADOR",
+        "GESTOR",
+        "MANAGER",
+        "SUPERVISOR",
+        "COORDENADOR",
+    }
+    perfil_html = (
+        f'<div style="display:inline-block;background:{fundo_chip};border:1px solid {borda_chip};'
+        f'color:{cor_chip};padding:3px 10px;border-radius:20px;font-size:10px;'
+        f'font-weight:800;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">'
+        f"🛡️ {html.escape(perfil_txt or 'ADMIN')}</div>"
+        if mostrar_perfil
+        else ""
+    )
+
     with st.sidebar:
         st.markdown(
             textwrap.dedent(
-            f"""
-<div style="background: linear-gradient(145deg, #FFFFFF 0%, #EDF0F4 100%);
-     border: 1px solid #CBD5E1; border-left: 4px solid #F97316;
-     border-radius: 12px; padding: 18px 16px; margin: 14px 14px 8px 14px;
-     box-shadow: 0 4px 14px rgba(0,0,0,0.06);
-    color: #172B3A; font-family: 'IBM Plex Sans', sans-serif;">
-    <div style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
-         color: #F97316; margin-bottom: 14px;">⚡ TOTALE · PORTAL</div>
-    <div style="width: 54px; height: 54px; border-radius: 50%;
-         background: linear-gradient(135deg, #012869 0%, #F97316 100%);
-         color: #FFFFFF; display: flex; align-items: center; justify-content: center;
-         font-size: 18px; font-weight: 800; margin-bottom: 12px;
-         box-shadow: 0 4px 10px rgba(0,0,0,0.25);">{iniciais}</div>
-    <p style="color: #012869; font-weight: 800; font-size: 14px;
-       margin: 0 0 12px 0; line-height: 1.3;">{nome or 'TÉCNICO'}</p>
-    <div style="font-size: 12px; color: #475569; margin-bottom: 6px;">
-        Login: <span style="background: #E2E8F0; border: 1px solid #CBD5E1;
-        color: #0F172A; padding: 2px 8px; border-radius: 4px;
-        font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{login or '—'}</span>
-    </div>
-    <div style="font-size: 12px; color: #475569; margin-bottom: 14px;">
-        User: <span style="background: #E2E8F0; border: 1px solid #CBD5E1;
-        color: #0F172A; padding: 2px 8px; border-radius: 4px;
-        font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{user or '—'}</span>
-    </div>
-    <div style="background: #D1FAE5; border: 1px solid #6EE7B7; color: #065F46;
-         padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
-         display: inline-flex; align-items: center; gap: 6px;">
-        <span style="width: 6px; height: 6px; background: #10B981;
-        border-radius: 50%; display: inline-block;"></span> Online
-    </div>
-</div>
-            """
-        ).strip(),
+                f"""
+                <div style="background:{fundo};
+                     border:1px solid {borda};border-left:4px solid #F97316;
+                     border-radius:12px;padding:18px 16px;margin:14px 14px 8px 14px;
+                     box-shadow:0 4px 14px rgba(0,0,0,0.06);color:{cor_nome};
+                     font-family:'IBM Plex Sans',sans-serif;">
+                    <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;
+                         color:#F97316;margin-bottom:14px;">{rotulo}</div>
+                    <div style="width:54px;height:54px;border-radius:50%;
+                         background:linear-gradient(135deg,#012869 0%,#F97316 100%);
+                         color:#FFFFFF;display:flex;align-items:center;justify-content:center;
+                         font-size:18px;font-weight:800;margin-bottom:12px;
+                         box-shadow:0 4px 10px rgba(0,0,0,0.25);">{iniciais}</div>
+                    <p style="color:{cor_nome};font-weight:800;font-size:14px;
+                       margin:0 0 10px 0;line-height:1.3;">
+                        {html.escape(nome or 'TÉCNICO')}
+                    </p>
+                    {perfil_html}
+                    <div style="font-size:12px;color:{cor_texto};margin-bottom:6px;">
+                        Login: <span style="background:{fundo_chip};border:1px solid {borda_chip};
+                        color:{cor_chip};padding:2px 8px;border-radius:4px;
+                        font-family:'IBM Plex Mono',monospace;font-weight:600;">
+                            {html.escape(login or '—')}</span>
+                    </div>
+                    <div style="font-size:12px;color:{cor_texto};margin-bottom:14px;">
+                        User: <span style="background:{fundo_chip};border:1px solid {borda_chip};
+                        color:{cor_chip};padding:2px 8px;border-radius:4px;
+                        font-family:'IBM Plex Mono',monospace;font-weight:600;">
+                            {html.escape(user or '—')}</span>
+                    </div>
+                    <div style="background:{status_fundo};border:1px solid {status_borda};
+                         color:{status_texto};padding:4px 12px;border-radius:20px;
+                         font-size:11px;font-weight:700;display:inline-flex;
+                         align-items:center;gap:6px;">
+                        <span style="width:6px;height:6px;background:{status_dot};
+                        border-radius:50%;display:inline-block;"></span> {status_label}
+                    </div>
+                </div>
+                """
+            ).strip(),
             unsafe_allow_html=True,
         )
 
@@ -1346,18 +1404,19 @@ def render_sidebar_portal(
         if st.button("🚪 Encerrar Sessão", use_container_width=True, key="btn_logout_portal"):
             st.session_state["authenticated"] = False
             st.session_state["user_info"] = {}
+            st.session_state["is_admin"] = False
             st.switch_page(pagina_logout)
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown(
             textwrap.dedent(
-            """
-<div style="text-align: center; font-size: 10px; color: #64748B;
-     margin-top: 18px; font-weight: 600; letter-spacing: 1px;">
-    POWERED BY <span style="color: #F97316;">TOTALE</span>
-</div>
-            """
-        ).strip(),
+                """
+                <div style="text-align:center;font-size:10px;color:#64748B;
+                     margin-top:18px;font-weight:600;letter-spacing:1px;">
+                    POWERED BY <span style="color:#F97316;">TOTALE</span>
+                </div>
+                """
+            ).strip(),
             unsafe_allow_html=True,
         )
 
@@ -1365,19 +1424,99 @@ def render_sidebar_portal(
 # ====================================================
 # RENOMEAR ITENS DO MENU (helper reutilizável)
 # ====================================================
-def injetar_css_menu_nomes(nomes: dict[str, str]) -> None:
+PAGINAS_MENU: dict[str, str] = {
+    "producao": "📊 Produtividade",
+    "consultivo": "🗣️ Consultivo",
+    "indicadores": "⚡ Indicadores",
+    "admin": "🛡️ Admin",
+}
+
+_PERFIS_ADMIN = {
+    "ADMIN",
+    "ADM",
+    "ADMINISTRADOR",
+    "GESTOR",
+    "MANAGER",
+    "SUPERVISOR",
+    "COORDENADOR",
+}
+
+
+def _sessao_e_admin() -> bool:
+    if st.session_state.get("is_admin"):
+        return True
+    info = st.session_state.get("user_info", {}) or {}
+    perfil = str(info.get("perfil", "")).strip().upper()
+    login = str(info.get("login", "")).strip().upper()
+    return perfil in _PERFIS_ADMIN or login.startswith("ADM")
+
+
+def injetar_css_menu_nomes(
+    nomes: dict[str, str] | None = None, *, is_admin: bool | None = None
+) -> None:
+    """Renomeia, ordena e padroniza o menu lateral em todas as páginas.
+
+    O título é injetado apenas no último ``span`` do link (o rótulo), então o
+    ícone Material continua visível e não há texto duplicado. O item Admin é
+    exibido somente para administradores.
     """
-    Renomeia itens do menu multipage via CSS.
-    Ex.: injetar_css_menu_nomes({"consultivo": "🗣️ Consultivo",
-                                 "producao": "📊 Produção"})
-    """
-    regras = ""
-    for slug, titulo in nomes.items():
-        regras += f"""
-        [data-testid="stSidebarNav"] a[href*="{slug}"] span {{ font-size: 0 !important; }}
-        [data-testid="stSidebarNav"] a[href*="{slug}"] span::before {{
+    mapa = {**PAGINAS_MENU, **(nomes or {})}
+    admin = _sessao_e_admin() if is_admin is None else is_admin
+
+    regras: list[str] = []
+    for ordem, (slug, titulo) in enumerate(mapa.items(), start=1):
+        regras.append(
+            f"""
+        [data-testid="stSidebarNav"] li:has(a[href*="{slug}"]) {{
+            order: {ordem} !important;
+        }}
+        [data-testid="stSidebarNav"] a[href*="{slug}"] > span:last-child {{
+            font-size: 0 !important;
+        }}
+        [data-testid="stSidebarNav"] a[href*="{slug}"] > span:last-child::before {{
             content: "{titulo}" !important;
-            font-size: 14px !important; font-weight: 700 !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
             color: inherit !important;
+            font-family: var(--font-texto) !important;
+            white-space: nowrap !important;
         }}"""
-    st.markdown(f"<style>{regras}</style>", unsafe_allow_html=True)
+        )
+
+    if not admin:
+        regras.append(
+            '[data-testid="stSidebarNav"] a[href*="admin"] { display: none !important; }'
+        )
+
+    regras.append(
+        """
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul {
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child {
+            display: none !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
+            background: #F8FAFC !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 8px !important;
+            margin: 4px 16px !important;
+            padding: 10px 14px !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
+            transition: all 0.2s ease;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover {
+            background: #F1F5F9 !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"],
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] {
+            background: linear-gradient(90deg, #FFF7ED 0%, #FFEDD5 100%) !important;
+            border: 1px solid #C66A16 !important;
+            border-left: 4px solid #C66A16 !important;
+            box-shadow: 0 4px 10px rgba(198,106,22,0.10) !important;
+        }
+        """
+    )
+
+    st.markdown(f"<style>{''.join(regras)}</style>", unsafe_allow_html=True)

@@ -10,9 +10,8 @@ do merge, então nenhuma visão agrega dados de outros profissionais.
 
 1. **Meus Indicadores** — os seis indicadores, evolução diária e comparativo
    dos últimos 7 dias contra os 7 anteriores.
-2. **Painel por Indicador** — recorte por período, evolução, ocorrências
-   individuais (registros fora do padrão) e exportações do indicador
-   selecionado.
+2. **Painel por Indicador** — recorte por período e evolução diária do
+   indicador selecionado.
 
 Contrato de dados
 -----------------
@@ -33,7 +32,6 @@ from __future__ import annotations
 
 import io
 import logging
-import textwrap
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
@@ -68,17 +66,6 @@ login_logado = str(info_logado.get("login", "")).strip().upper()
 user_logado = str(info_logado.get("user", "")).strip().upper()
 perfil_logado = str(info_logado.get("perfil", "")).strip().upper()
 
-_ADMIN_IDENTIFIERS = {
-    "ADMIN",
-    "ADM",
-    "ADMINISTRADOR",
-    "GESTOR",
-    "MANAGER",
-    "SUPERVISOR",
-    "COORDENADOR",
-}
-IS_ADMIN = perfil_logado in _ADMIN_IDENTIFIERS or login_logado.startswith("ADM")
-
 # ====================================================
 # 3. DESIGN SYSTEM E CONFIGURAÇÃO COMPARTILHADA
 # ====================================================
@@ -106,60 +93,10 @@ except ImportError:
     st.stop()
 
 
-def injetar_css_navegacao() -> None:
-    """Mantém o menu lateral consistente com as demais páginas do portal."""
-    esconder_admin = (
-        ""
-        if IS_ADMIN
-        else '[data-testid="stSidebarNav"] a[href*="admin"] { display: none !important; }'
-    )
-    css = """
-    <style>
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul {
-        display: flex !important;
-        flex-direction: column !important;
-    }
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="producao"]) { order: 1 !important; }
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="consultivo"]) { order: 2 !important; }
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="indicadores"]) { order: 3 !important; }
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="admin"]) { order: 4 !important; }
-    [data-testid="stSidebarNav"] a[href*="producao"] span,
-    [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
-    [data-testid="stSidebarNav"] a[href*="producao"] span::before {
-        content: "📊 Produtividade"; font-size: 14px !important;
-        font-weight: 700 !important; color: #1E293B !important;
-    }
-    [data-testid="stSidebarNav"] a[href*="consultivo"] span::before {
-        content: "🗣️ Consultivo"; font-size: 14px !important;
-        font-weight: 700 !important; color: #1E293B !important;
-    }
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
-        background: #F8FAFC !important;
-        border: 1px solid #E2E8F0 !important;
-        border-radius: 8px !important;
-        margin: 4px 16px !important;
-        padding: 10px 14px !important;
-    }
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"],
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] {
-        background: linear-gradient(90deg, #FFF7ED 0%, #FFEDD5 100%) !important;
-        border: 1px solid #F97316 !important;
-        border-left: 4px solid #F97316 !important;
-    }
-    __ADMIN__
-    </style>
-    """
-    st.markdown(
-        textwrap.dedent(css.replace("__ADMIN__", esconder_admin)).strip(),
-        unsafe_allow_html=True,
-    )
-
-
 def configurar_pagina() -> None:
     aplicar_estilo()
     aplicar_tema_claro()
-    injetar_css_navegacao()
-    injetar_css_menu_nomes({"indicadores": "⚡ Indicadores"})
+    injetar_css_menu_nomes()
 
 
 configurar_pagina()
@@ -167,7 +104,7 @@ configurar_pagina()
 # ====================================================
 # 4. CONSTANTES DO PAINEL
 # ====================================================
-VERSAO_PAGINA = "1.1.0"
+VERSAO_PAGINA = "1.2.0"
 DATA_SISTEMA_STR = datetime.now().strftime("%d/%m/%Y às %H:%M")
 SEM_VINCULO = "(Sem vínculo)"
 MARGEM_CRITICA = 5.0
@@ -327,9 +264,6 @@ TREND_STATUS: dict[str, TipoTrendType] = {
     "PENDENTE": "neutral",
     "CANCELADO": "down",
 }
-COLUNAS_AUXILIARES = {"_SCORE", "_DATA", "_KEY", "_DIA", "Base_lbl"}
-
-
 # ====================================================
 # 5. FUNÇÕES UTILITÁRIAS
 # ====================================================
@@ -1247,65 +1181,6 @@ def render_evolucao_consolidada(long_df: pd.DataFrame, metas: list[float]) -> No
         st.line_chart(pivot, height=320)
 
 
-def download_csv(df: pd.DataFrame, rotulo: str, nome_arquivo: str, key: str) -> None:
-    if df is None or df.empty:
-        st.caption(f"Sem linhas para {rotulo.lower()}.")
-        return
-    cols = [c for c in df.columns if c not in COLUNAS_AUXILIARES]
-    csv = df[cols].to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig")
-    st.download_button(
-        rotulo,
-        data=csv,
-        file_name=nome_arquivo,
-        mime="text/csv",
-        key=key,
-    )
-
-
-def montar_ocorrencias(falhas: list[pd.DataFrame]) -> pd.DataFrame:
-    """Combina as falhas dos indicadores em uma tabela única do técnico."""
-    if not falhas:
-        return pd.DataFrame()
-
-    combinado = pd.concat(falhas, ignore_index=True)
-    combinado = combinado.dropna(axis=1, how="all")
-
-    descartar = set(COLUNAS_AUXILIARES) | {"Tecnico", "Monitor", "Situacao"}
-    colunas = [c for c in combinado.columns if c not in descartar]
-
-    # Identificador do indicador e data vêm primeiro para facilitar a leitura.
-    for prioridade, posicao in (("Indicador", 0), ("Data", 1)):
-        if prioridade in colunas:
-            colunas.remove(prioridade)
-            colunas.insert(posicao, prioridade)
-    return combinado[colunas].copy()
-
-
-def render_ocorrencias(
-    df: pd.DataFrame,
-    titulo: str,
-    key_download: str,
-    nome_arquivo: str,
-    descricao: str = "",
-) -> None:
-    if df is None or df.empty:
-        return
-
-    st.markdown(f"#### {titulo}")
-    prefixo = f"{descricao} " if descricao else ""
-    st.caption(f"{prefixo}{fmt_int(len(df))} registros fora do padrão no recorte.")
-    st.dataframe(df, width="stretch", height=360, hide_index=True)
-
-    csv_data = df.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig")
-    st.download_button(
-        "⬇️ Exportar ocorrências (CSV)",
-        data=csv_data,
-        file_name=nome_arquivo,
-        mime="text/csv",
-        key=key_download,
-    )
-
-
 def texto_resumo_pessoal(dados: list[dict[str, Any]]) -> tuple[str, TipoInsightType]:
     if not dados:
         return "Nenhum indicador com registros seus neste recorte.", "alerta"
@@ -1382,46 +1257,6 @@ def texto_insight_indicador_pessoal(
     return texto, tipo
 
 
-def _texto_detalhe(valor: Any) -> str:
-    if pd.isna(valor):
-        return "(vazio)"
-    texto = str(valor).strip()
-    if texto.upper() in {"", "NAN", "NONE", "NAT", "NULL", "-"}:
-        return "(vazio)"
-    return texto
-
-
-def _coluna_criterio(work: pd.DataFrame, chave: str) -> str | None:
-    regra = CRITERIOS_POR_ABA.get(chave)
-    if not regra:
-        return None
-    if regra.get("tipo") == "dual_column_ratio":
-        candidatas = regra["colunas_possiveis_num"]
-    else:
-        candidatas = regra["colunas_possiveis"]
-    return encontrar_coluna_flexivel(work, candidatas)
-
-
-def enriquecer_falhas(work: pd.DataFrame, chave: str) -> pd.DataFrame:
-    """Adiciona indicador, data legível e o valor que ficou fora do padrão."""
-    falhas = work[work["_SCORE"] == 0].copy() if "_SCORE" in work.columns else pd.DataFrame()
-    if falhas.empty:
-        return pd.DataFrame()
-
-    falhas["Indicador"] = f"{NOMES_ICONES.get(chave, '📋')} {NOMES_AMIGAVEIS.get(chave, chave)}"
-    if "_DATA" in falhas.columns:
-        falhas["Data"] = falhas["_DATA"].dt.strftime("%d/%m/%Y")
-    else:
-        falhas["Data"] = "—"
-
-    coluna = _coluna_criterio(work, chave)
-    if coluna:
-        falhas["Campo"] = coluna
-        falhas["Detalhe"] = falhas[coluna].map(_texto_detalhe)
-    return falhas
-
-
-# ====================================================
 # 10. VISÃO CONSOLIDADA PESSOAL
 # ====================================================
 def renderizar_meus_indicadores(
@@ -1825,43 +1660,6 @@ def renderizar_painel_pessoal(
 
     st.markdown("---")
     render_evolucao(serie_diaria(work), meta_kpi, "📈 Minha evolução diária vs meta")
-    st.markdown("---")
-
-    falhas = enriquecer_falhas(work, nome_kpi)
-    if falhas.empty:
-        render_insight(
-            f"**Nenhuma ocorrência em {nome_amigavel}** — todos os seus registros "
-            "do recorte estão dentro do padrão.",
-            tipo="ok",
-        )
-    else:
-        render_ocorrencias(
-            montar_ocorrencias([falhas]),
-            titulo=f"📝 Minhas ocorrências em {nome_amigavel}",
-            key_download=f"dl_ocorrencias_{nome_kpi}",
-            nome_arquivo=f"{nome_kpi}_minhas_ocorrencias.csv",
-        )
-
-    with st.expander("Ver todos os meus registros deste indicador"):
-        colunas = [c for c in work.columns if c not in COLUNAS_AUXILIARES]
-        st.dataframe(work[colunas], width="stretch", height=360, hide_index=True)
-
-    with st.expander("Exportar recorte"):
-        e1, e2 = st.columns(2)
-        with e1:
-            download_csv(
-                falhas,
-                "⬇️ Fora do padrão",
-                f"{nome_kpi}_minhas_falhas.csv",
-                key=f"dl_falhas_{nome_kpi}",
-            )
-        with e2:
-            download_csv(
-                work,
-                "⬇️ Base filtrada",
-                f"{nome_kpi}_meu_recorte.csv",
-                key=f"dl_base_{nome_kpi}",
-            )
 
 
 # ====================================================
@@ -1896,13 +1694,14 @@ render_sidebar_portal(
     login=login_logado,
     user=user_logado,
     pagina_logout="streamlit_app.py",
+    perfil=perfil_logado,
 )
 
 render_hero_totale_1(
     titulo="Meus Indicadores de Qualidade",
     subtitulo=(
-        "Seus seis indicadores operacionais, a evolução diária e as ocorrências "
-        "individuais — somente os seus registros."
+        "Seus seis indicadores operacionais e a evolução diária — somente os "
+        "seus registros."
     ),
     icone="monitoring",
     badge=f"PAINEL PESSOAL v{VERSAO_PAGINA}",
@@ -2100,7 +1899,7 @@ nomes_tabs: list[str] = ["🎯 Meus Indicadores"] + [
 
 render_cabecalho(
     "Detalhe por Indicador",
-    "Selecione uma aba para ver seu recorte, sua evolução e suas ocorrências.",
+    "Selecione uma aba para ver seu recorte e sua evolução diária.",
     "📊",
 )
 tabs = st.tabs(nomes_tabs)

@@ -68,10 +68,11 @@ try:
     from components.componentes import (
         aplicar_estilo,
         aplicar_tema_claro,
+        render_sidebar_portal,
         render_hero_totale_1,
         render_insight,
         render_section_header,
-        injetar_css_menu_nomes,  # noqa: F401
+        injetar_css_menu_nomes,
     )
 except ImportError:
     st.error("⚠️ Módulo 'componentes.py' não encontrado.")
@@ -102,14 +103,6 @@ def injetar_css_admin() -> None:
             background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%) !important;
             border-right: 1px solid #334155 !important;
         }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child { display: none !important; }
-        [data-testid="stSidebarNav"] a[href*="consultivo"] { display: none !important; }
-        [data-testid="stSidebarNav"] a[href*="producao"] { display: none !important; }
-        [data-testid="stSidebarNav"] a[href*="admin"] span { font-size: 0 !important; }
-        [data-testid="stSidebarNav"] a[href*="admin"] span::before {
-            content: "🛡️ Admin" !important; font-size: 14px !important;
-            font-weight: 700 !important; color: #F8FAFC !important;
-        }
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
             background: rgba(255,255,255,0.05) !important;
             border: 1px solid #334155 !important;
@@ -134,7 +127,12 @@ def injetar_css_admin() -> None:
         section[data-testid="stSidebar"] .admin-profile-card .admin-profile-status { color: #FCA5A5 !important; }
         section[data-testid="stSidebar"] .admin-profile-card .badge-admin { color: #FFFFFF !important; }
         section[data-testid="stSidebar"] .admin-profile-card .admin-profile-avatar { color: #FFFFFF !important; }
-        .btn-logout button {
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a,
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a span,
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a > span:last-child::before {
+            color: #F8FAFC !important;
+        }
+        .btn-logout-portal button {
             background: linear-gradient(180deg, #334155 0%, #1E293B 100%) !important;
             border: 1px solid #475569 !important;
             color: #F8FAFC !important;
@@ -142,7 +140,9 @@ def injetar_css_admin() -> None:
             border-radius: 8px !important;
             margin-top: 10px !important;
         }
-        .btn-logout button:hover { background: #475569 !important; border-color: #F97316 !important; }
+        .btn-logout-portal button:hover {
+            background: #475569 !important; border-color: #F97316 !important;
+        }
         .card-admin { position: relative; cursor: default; }
         .tooltip-premium {
             visibility: hidden; background-color: #0F172A; color: #F8FAFC;
@@ -209,58 +209,14 @@ def injetar_css_admin() -> None:
 
 
 def render_sidebar_admin() -> None:
-    partes = nome_logado.split()
-    if len(partes) >= 2:
-        iniciais = partes[0][0] + partes[1][0]
-    elif len(partes) == 1:
-        iniciais = partes[0][:2]
-    else:
-        iniciais = "AD"
-
-    with st.sidebar:
-        st.markdown(
-            textwrap.dedent(
-            f"""
-            <div class="admin-profile-card" style="background: linear-gradient(145deg, #1E293B 0%, #0F172A 100%);
-                        border: 1px solid #334155; border-left: 4px solid #F97316;
-                        border-radius: 12px; padding: 16px; margin: 16px;">
-                <div class="admin-profile-label" style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: #F97316; margin-bottom: 12px;">
-                    ⚡ TOTALE · ADMIN
-                </div>
-                <div class="admin-profile-avatar" style="width: 52px; height: 52px; border-radius: 50%;
-                            background: linear-gradient(135deg, #F97316 0%, #DC2626 100%);
-                            color: white; display: flex; align-items: center; justify-content: center;
-                            font-size: 18px; font-weight: 800; margin-bottom: 12px;
-                            box-shadow: 0 4px 10px rgba(249,115,22,0.3);">
-                    {iniciais}
-                </div>
-                <p style="color: #F8FAFC; font-weight: 800; font-size: 14px; margin: 0 0 4px 0;">
-                    {nome_logado or 'ADMINISTRADOR'}
-                </p>
-                <div style="margin-bottom: 12px;">
-                    <span class="badge-admin">🛡️ {perfil_logado or 'ADMIN'}</span>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
-                    <div class="admin-profile-login" style="font-size: 12px; color: #94A3B8;">
-                        Login: <span class="admin-profile-login-value" style="background: #334155; color: #E2E8F0; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: 600;">{login_logado or 'N/A'}</span>
-                    </div>
-                </div>
-                <div class="admin-profile-status" style="background: rgba(239,68,68,0.15); border: 1px solid #EF4444; color: #FCA5A5;
-                            padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
-                            display: inline-flex; align-items: center; gap: 6px;">
-                    <div style="width: 6px; height: 6px; background: #EF4444; border-radius: 50%;"></div>
-                    Sessão Admin
-                </div>
-            </div>
-            """
-        ).strip(),
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="btn-logout">', unsafe_allow_html=True)
-        if st.button("🚪 Encerrar Sessão", use_container_width=True):
-            st.session_state["authenticated"] = False
-            st.switch_page("streamlit_app.py")
-        st.markdown("</div>", unsafe_allow_html=True)
+    render_sidebar_portal(
+        nome=nome_logado,
+        login=login_logado,
+        user=user_logado,
+        pagina_logout="streamlit_app.py",
+        perfil=perfil_logado,
+        tema="escuro",
+    )
 
 
 # ====================================================
@@ -881,6 +837,7 @@ def _card(
 # ====================================================
 aplicar_estilo()
 aplicar_tema_claro()
+injetar_css_menu_nomes()
 injetar_css_admin()
 render_sidebar_admin()
 
