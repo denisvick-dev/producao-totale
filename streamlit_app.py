@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 from utils._auth import AuthManager
 from utils._database import get_db
+import textwrap
 
 # ====================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -57,7 +58,8 @@ def carregar_usuarios_cached() -> pd.DataFrame:
 # ====================================================
 def injetar_css_login():
     st.markdown(
-        """
+        textwrap.dedent(
+            """
         <style>
         /* Sidebar PRATA / CINZA METÁLICO CLARO */
         section[data-testid="stSidebar"] {
@@ -123,7 +125,8 @@ def injetar_css_login():
             height: 0 !important;
         }
         </style>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -131,13 +134,15 @@ def injetar_css_login():
 def render_sidebar_login() -> None:
     with st.sidebar:
         st.markdown(
+            textwrap.dedent(
             """
             <div class="sidebar-login-brand">
                 <div class="brand">⚡ Totale · Portal</div>
                 <p class="title">Acesso do Técnico</p>
                 <p class="sub">Faça login para ver sua produção e indicadores.</p>
             </div>
-            """,
+            """
+        ).strip(),
             unsafe_allow_html=True,
         )
         st.divider()
@@ -157,12 +162,14 @@ def render_sidebar_login() -> None:
 # ====================================================
 def render_tabela_consulta():
     st.markdown(
-        """
+        textwrap.dedent(
+            """
         <div class="tabela-info">
             <h4 style="color:#012869;margin:0 0 4px 0;font-size:16px;font-weight:700;">📋 Base de Colaboradores Ativos</h4>
             <p style="color:#64748B;margin:0;font-size:13px;font-weight:500;">Consulte seu código de acesso na lista abaixo (Apenas para conferência).</p>
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -328,12 +335,14 @@ injetar_css_login()
 render_sidebar_login()
 
 st.markdown(
-    """
+    textwrap.dedent(
+            """
     <div class="login-header">
         <h1>⚡ TOTALE<span>.</span></h1>
         <p>Portal Operacional do Técnico</p>
     </div>
-    """,
+    """
+        ).strip(),
     unsafe_allow_html=True,
 )
 

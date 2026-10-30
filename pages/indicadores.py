@@ -10,10 +10,9 @@ do merge, então nenhuma visão agrega dados de outros profissionais.
 
 1. **Meus Indicadores** — os seis indicadores, evolução diária e comparativo
    dos últimos 7 dias contra os 7 anteriores.
-2. **Meu Plano de Ação** — cartões por indicador e as ocorrências individuais
-   (registros fora do padrão) com exportação CSV.
-3. **Painel por Indicador** — recorte por período, evolução, ocorrências e
-   exportações do indicador selecionado.
+2. **Painel por Indicador** — recorte por período, evolução, ocorrências
+   individuais (registros fora do padrão) e exportações do indicador
+   selecionado.
 
 Contrato de dados
 -----------------
@@ -34,6 +33,7 @@ from __future__ import annotations
 
 import io
 import logging
+import textwrap
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
@@ -149,7 +149,10 @@ def injetar_css_navegacao() -> None:
     __ADMIN__
     </style>
     """
-    st.markdown(css.replace("__ADMIN__", esconder_admin), unsafe_allow_html=True)
+    st.markdown(
+        textwrap.dedent(css.replace("__ADMIN__", esconder_admin)).strip(),
+        unsafe_allow_html=True,
+    )
 
 
 def configurar_pagina() -> None:
@@ -164,7 +167,7 @@ configurar_pagina()
 # ====================================================
 # 4. CONSTANTES DO PAINEL
 # ====================================================
-VERSAO_PAGINA = "1.0.0"
+VERSAO_PAGINA = "1.1.0"
 DATA_SISTEMA_STR = datetime.now().strftime("%d/%m/%Y às %H:%M")
 SEM_VINCULO = "(Sem vínculo)"
 MARGEM_CRITICA = 5.0
@@ -1259,19 +1262,13 @@ def download_csv(df: pd.DataFrame, rotulo: str, nome_arquivo: str, key: str) -> 
     )
 
 
-def montar_ocorrencias(
-    falhas: list[pd.DataFrame], compacto: bool = False
-) -> pd.DataFrame:
+def montar_ocorrencias(falhas: list[pd.DataFrame]) -> pd.DataFrame:
     """Combina as falhas dos indicadores em uma tabela única do técnico."""
     if not falhas:
         return pd.DataFrame()
 
     combinado = pd.concat(falhas, ignore_index=True)
     combinado = combinado.dropna(axis=1, how="all")
-
-    if compacto:
-        preferidas = ["Indicador", "Data", "Detalhe", "Campo", "Base"]
-        return combinado[[c for c in preferidas if c in combinado.columns]].copy()
 
     descartar = set(COLUNAS_AUXILIARES) | {"Tecnico", "Monitor", "Situacao"}
     colunas = [c for c in combinado.columns if c not in descartar]
@@ -1694,154 +1691,7 @@ def renderizar_meus_indicadores(
 
 
 # ====================================================
-# 11. MEU PLANO DE AÇÃO
-# ====================================================
-def renderizar_meu_plano_acao(
-    resultados: dict[str, dict[str, Any]], identidade: IdentidadeTecnico
-) -> None:
-    render_cabecalho(
-        "Meu Plano de Ação",
-        "Onde você está fora do padrão e o que revisar em cada indicador.",
-        "📝",
-    )
-
-    p1, p2, p3, p4 = st.columns(4)
-    situacao = identidade.situacao
-    icone_situacao = "🟢" if situacao.upper() == "ATIVO" else "⚠️"
-    render_kpi_sm(p1, "Técnico", identidade.nome.title(), sub=identidade.login, tema="azul")
-    render_kpi_sm(p2, "Base", identidade.base, sub="Sua lotação", tema="cinza")
-    render_kpi_sm(p3, "Monitor", identidade.monitor, sub="Responsável direto", tema="cinza")
-    render_kpi_sm(
-        p4,
-        "Situação cadastral",
-        f"{icone_situacao} {situacao}",
-        sub="Lista de Ativos",
-        tema="verde" if situacao.upper() == "ATIVO" else "laranja",
-    )
-
-    frames: list[pd.DataFrame] = []
-    vistos: set[int] = set()
-    for chave in ORDEM_INDICADORES:
-        df_chave = dataframe_indicador(resultados, chave)
-        if df_chave is None or df_chave.empty or id(df_chave) in vistos:
-            continue
-        vistos.add(id(df_chave))
-        frames.append(df_chave if "_DATA" in df_chave.columns else anexar_data(df_chave, chave))
-
-    dmin, dmax = None, None
-    for df_tmp in frames:
-        ini, fim = limites_periodo(df_tmp)
-        if ini and (dmin is None or ini < dmin):
-            dmin = ini
-        if fim and (dmax is None or fim > dmax):
-            dmax = fim
-
-    ini_sel, fim_sel = dmin, dmax
-    if dmin and dmax:
-        periodo = st.date_input(
-            "📅 Período",
-            value=(dmin, dmax),
-            min_value=dmin,
-            max_value=dmax,
-            key="meu_plano_periodo",
-        )
-        ini_sel, fim_sel = normalizar_periodo(periodo, dmin, dmax)
-
-    linhas: list[dict[str, Any]] = []
-    falhas_list: list[pd.DataFrame] = []
-    for chave in ORDEM_INDICADORES:
-        registro: dict[str, Any] = {
-            "chave": chave,
-            "pct": None,
-            "total": 0,
-            "falhas": 0,
-            "status": None,
-            "desvio": None,
-            "var7": None,
-        }
-        df_fonte = dataframe_indicador(resultados, chave)
-        if df_fonte is not None and not df_fonte.empty:
-            df_calc = aplicar_periodo(df_fonte, ini_sel, fim_sel)
-            if not df_calc.empty:
-                work, info = com_score(df_calc, chave)
-                if "pct" in info and int(info.get("denominador", 0)) > 0:
-                    meta = float(METAS_POR_ABA.get(chave, 95.0))
-                    janela = comparativo_7d(work)
-                    registro.update(
-                        {
-                            "pct": float(info["pct"]),
-                            "total": int(info["denominador"]),
-                            "falhas": int(info["denominador"]) - int(info["numerador"]),
-                            "status": classificar_status(float(info["pct"]), meta),
-                            "desvio": float(info["pct"]) - meta,
-                            "var7": janela.get("var"),
-                        }
-                    )
-                    enriquecida = enriquecer_falhas(work, chave)
-                    if not enriquecida.empty:
-                        falhas_list.append(enriquecida)
-        linhas.append(registro)
-
-    st.markdown("### 🎯 Meus indicadores no recorte")
-    for inicio in range(0, len(linhas), 3):
-        grupo = linhas[inicio : inicio + 3]
-        cols = st.columns(3)
-        for col, linha in zip(cols, grupo):
-            chave = linha["chave"]
-            icone = NOMES_ICONES.get(chave, "📋")
-            nome = NOMES_CURTOS.get(chave, chave)
-            meta = float(METAS_POR_ABA.get(chave, 95.0))
-            with col:
-                if linha["pct"] is None:
-                    render_kpi_sm(
-                        col,
-                        f"{icone} {nome}",
-                        "—",
-                        sub="Sem registros no período",
-                        tema="cinza",
-                    )
-                    continue
-                render_kpi(
-                    col,
-                    f"{icone} {nome}",
-                    f"{linha['pct']:.1f}%",
-                    sub=(
-                        f"Falhas: {fmt_int(linha['falhas'])}/{fmt_int(linha['total'])} | "
-                        f"Meta: {meta:.0f}% | 7d: {fmt_pp(linha['var7'])}"
-                    ),
-                    tema=tema_kpi_status(linha["status"]),
-                    delta=f"{linha['desvio']:+.1f}%",
-                    delta_tipo=trend_de_status(linha["status"]),
-                    colorida=True,
-                )
-                render_progress_bar(
-                    valor=linha["pct"],
-                    maximo=100.0,
-                    mostrar_valor=False,
-                    tema=tema_kpi_status(linha["status"]),
-                    altura="pequeno",
-                )
-
-    st.markdown("---")
-    ocorrencias = montar_ocorrencias(falhas_list, compacto=True)
-    if ocorrencias.empty:
-        render_insight(
-            "**Nenhuma ocorrência no período** — todos os seus registros estão dentro do padrão. "
-            "Mantenha o acompanhamento pelos indicadores acima.",
-            tipo="ok",
-        )
-        return
-    render_ocorrencias(
-        ocorrencias,
-        titulo="📝 Minhas ocorrências e plano de ação",
-        key_download="dl_minhas_ocorrencias",
-        nome_arquivo="minhas_ocorrencias.csv",
-        descricao="Cada linha é um registro seu que ficou fora do padrão do indicador.",
-    )
-
-
-# ====================================================
-# 12. PAINEL PESSOAL DO INDICADOR
+# 11. PAINEL PESSOAL DO INDICADOR
 # ====================================================
 def renderizar_painel_pessoal(
     df_indicador: pd.DataFrame | None, nome_kpi: str, identidade: IdentidadeTecnico
@@ -2015,7 +1865,7 @@ def renderizar_painel_pessoal(
 
 
 # ====================================================
-# 13. CHIPS DE CONTEXTO DO TOPO
+# 12. CHIPS DE CONTEXTO DO TOPO
 # ====================================================
 def render_chips(chips: dict[str, str]) -> None:
     itens = "".join(
@@ -2039,7 +1889,7 @@ def render_chips(chips: dict[str, str]) -> None:
 
 
 # ====================================================
-# 14. EXECUÇÃO PRINCIPAL
+# 13. EXECUÇÃO PRINCIPAL
 # ====================================================
 render_sidebar_portal(
     nome=nome_logado,
@@ -2051,8 +1901,8 @@ render_sidebar_portal(
 render_hero_totale_1(
     titulo="Meus Indicadores de Qualidade",
     subtitulo=(
-        "Seus seis indicadores operacionais, a evolução diária e o plano de ação "
-        "individual — somente os seus registros."
+        "Seus seis indicadores operacionais, a evolução diária e as ocorrências "
+        "individuais — somente os seus registros."
     ),
     icone="monitoring",
     badge=f"PAINEL PESSOAL v{VERSAO_PAGINA}",
@@ -2243,7 +2093,7 @@ if not abas_exibicao:
     )
     st.stop()
 
-nomes_tabs: list[str] = ["🎯 Meus Indicadores", "📝 Meu Plano de Ação"] + [
+nomes_tabs: list[str] = ["🎯 Meus Indicadores"] + [
     f"{NOMES_ICONES.get(chave, '📋')} {NOMES_AMIGAVEIS.get(chave, chave)}"
     for chave, _ in abas_exibicao
 ]
@@ -2258,11 +2108,8 @@ tabs = st.tabs(nomes_tabs)
 with tabs[0]:
     renderizar_meus_indicadores(resultados, identidade)
 
-with tabs[1]:
-    renderizar_meu_plano_acao(resultados, identidade)
-
 for idx, (chave_kpi, df_kpi) in enumerate(abas_exibicao):
-    with tabs[idx + 2]:
+    with tabs[idx + 1]:
         renderizar_painel_pessoal(df_kpi, chave_kpi, identidade)
 
 st.markdown("---")

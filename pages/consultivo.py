@@ -63,7 +63,8 @@ configurar_locale()
 # ====================================================
 def injetar_css_menu_sidebar():
     st.markdown(
-        """
+        textwrap.dedent(
+            """
         <style>
         /* Fundo Geral do Sidebar */
         section[data-testid="stSidebar"] {
@@ -125,7 +126,8 @@ def injetar_css_menu_sidebar():
             border-color: #64748B !important;
         }
         </style>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 

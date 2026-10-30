@@ -17,6 +17,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from utils._config import HEADERS_USERS
 from utils._database import get_db
+import textwrap
 
 # ====================================================
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -94,7 +95,8 @@ configurar_locale()
 # ====================================================
 def injetar_css_admin() -> None:
     st.markdown(
-        """
+        textwrap.dedent(
+            """
         <style>
         section[data-testid="stSidebar"] {
             background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%) !important;
@@ -200,7 +202,8 @@ def injetar_css_admin() -> None:
         }
         .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
         </style>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -216,6 +219,7 @@ def render_sidebar_admin() -> None:
 
     with st.sidebar:
         st.markdown(
+            textwrap.dedent(
             f"""
             <div class="admin-profile-card" style="background: linear-gradient(145deg, #1E293B 0%, #0F172A 100%);
                         border: 1px solid #334155; border-left: 4px solid #F97316;
@@ -248,7 +252,8 @@ def render_sidebar_admin() -> None:
                     Sessão Admin
                 </div>
             </div>
-            """,
+            """
+        ).strip(),
             unsafe_allow_html=True,
         )
         st.markdown('<div class="btn-logout">', unsafe_allow_html=True)
@@ -854,7 +859,8 @@ def _card(
     c = _TEMAS_CARD.get(tema, _TEMAS_CARD["azul"])
     sub_color = "#94A3B8" if tema == "escuro" else "#64748B"
     tip = f'<div class="tooltip-premium">{tooltip}</div>' if tooltip else ""
-    return f"""
+    return textwrap.dedent(
+        f"""
     <div class="card-admin" style="background:{c['fundo']};padding:20px;border-radius:10px;
          border-left:5px solid {c['borda']};box-shadow:0 4px 6px rgba(0,0,0,0.05);
          height:100%;display:flex;flex-direction:column;justify-content:center;
@@ -865,7 +871,9 @@ def _card(
         <h2 style="margin:5px 0 0;color:{c['texto']};font-weight:900;font-size:30px;">{valor}</h2>
         <p style="margin:5px 0 0;font-size:11px;color:{sub_color};font-weight:600;">{sub}</p>
         {tip}
-    </div>"""
+    </div>
+        """
+    ).strip()
 
 
 # ====================================================

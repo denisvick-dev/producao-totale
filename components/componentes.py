@@ -19,6 +19,7 @@ from __future__ import annotations
 import html
 import logging
 import re
+import textwrap
 from typing import Any, Callable, Literal, Union
 
 import pandas as pd
@@ -632,7 +633,7 @@ def _injetar_css_global() -> None:
     }}
     </style>
     """
-    st.markdown(css, unsafe_allow_html=True)
+    st.markdown(textwrap.dedent(css).strip(), unsafe_allow_html=True)
 
 
 # ====================================================
@@ -698,7 +699,8 @@ def render_hero_totale_1(
     )
 
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div class="hero-totale-1">
             <div class="hero-t1-icon-box">{icone_html}</div>
             <div class="hero-t1-content">
@@ -707,7 +709,8 @@ def render_hero_totale_1(
                 {badge_html}
             </div>
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
     
@@ -717,12 +720,14 @@ def render_hero_totale_2(titulo: str, subtitulo: str = "") -> None:
         raise ValueError("render_hero_totale_2: 'titulo' não pode ser vazio.")
     sub_html = f'<p class="hero-t2-sub">{subtitulo}</p>' if subtitulo else ""
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div class="hero-totale-2">
             <h1 class="hero-t2-title">{titulo}</h1>
             {sub_html}
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -752,14 +757,16 @@ def render_sidebar_brand(titulo: str, subtitulo: str = "", icone: str = "🏢") 
         else ""
     )
     st.sidebar.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="padding:10px 10px 18px 10px; border-bottom:1px solid var(--cor-borda);">
             <h2 style="font-family:{FONTE_TITULO};font-size:18px;color:var(--cor-primaria);margin:0;font-weight:900;display:flex;align-items:center;gap:8px;">
                 <span>{icone}</span> {titulo}
             </h2>
             {sub_html}
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -784,13 +791,15 @@ def render_section_header(icon: str, title: str, badge: str = "") -> None:
         raise ValueError("render_section_header: 'title' vazio.")
     badge_html = f'<span class="section-badge">{badge}</span>' if badge else ""
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div class="section-header">
             <span style="font-size:22px;line-height:1;">{icon}</span>
             <h2 class="section-title">{title}</h2>
             {badge_html}
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -833,14 +842,16 @@ def render_kpi(
         )
 
     col.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div class="kpi-card" style="border-left-color:{cor};background:{fundo};">
             <div class="kpi-label">{label}</div>
             <div class="kpi-value" style="color:{cor};">{valor}</div>
             {delta_html}
             <div class="kpi-sub">{sub}</div>
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -850,13 +861,15 @@ def render_kpi_sm(
 ) -> None:
     cor = _resolver_cor_tema(tema)
     container.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="background:white;border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--cor-borda);border-left:3px solid {cor};margin-bottom:8px;box-shadow:var(--shadow-sm);">
             <div style="font-family:{FONTE_TEXTO};font-size:10px;color:var(--cor-texto-3);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">{label}</div>
             <div style="font-family:{FONTE_TITULO};font-size:20px;color:{cor};font-weight:800;line-height:1.2;margin-top:4px;font-variant-numeric:tabular-nums;">{valor}</div>
             <div style="font-family:{FONTE_TEXTO};font-size:11px;color:var(--cor-texto-3);margin-top:2px;">{sub}</div>
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -868,11 +881,13 @@ def render_insight(msg: str, tipo: TipoInsight = "info") -> None:
     bg, texto, borda, icone = config
     msg_html = _markdown_inline_para_html(msg)
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="background:{bg};color:{texto};border-left:4px solid {borda};padding:12px 16px;border-radius:var(--radius-sm);margin:12px 0;font-family:{FONTE_TEXTO};font-size:14px;line-height:1.6;font-weight:500;">
             <span style="margin-right:8px;font-size:15px;">{icone}</span>{msg_html}
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -909,7 +924,8 @@ def render_progress_bar(
         else ""
     )
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="margin:8px 0 14px 0;">
             {label_html}
             <div style="display:flex;align-items:center;gap:10px;">
@@ -919,7 +935,8 @@ def render_progress_bar(
                 {valor_html}
             </div>
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -957,7 +974,8 @@ def render_empty_state(
         else ""
     )
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="background:{fundo};border:1px solid {borda};border-left:4px solid {borda};
                     border-radius:var(--radius-md);padding:20px 22px;margin:14px 0;">
             <div style="display:flex;align-items:flex-start;gap:12px;">
@@ -969,7 +987,8 @@ def render_empty_state(
                 </div>
             </div>
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -1095,7 +1114,8 @@ def render_table_html(
 
     altura_css = f"max-height:{int(height)}px;" if height else ""
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="background:#FFFFFF;border:1px solid #D9E2E8;border-radius:8px;
                     overflow:auto;{altura_css}margin-bottom:14px;
                     box-shadow:0 1px 2px rgba(18,48,74,0.06);">
@@ -1104,7 +1124,8 @@ def render_table_html(
                 <tbody>{''.join(linhas)}</tbody>
             </table>
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -1167,7 +1188,8 @@ def aplicar_tema_claro() -> None:
     Chamar SEMPRE logo após aplicar_estilo().
     """
     st.markdown(
-        """
+        textwrap.dedent(
+            """
         <style>
         /* ── FORÇA LIGHT MODE NO APP INTEIRO ── */
         html, body, .stApp,
@@ -1252,7 +1274,8 @@ def aplicar_tema_claro() -> None:
             color: #0F172A !important;
         }
         </style>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -1281,6 +1304,7 @@ def render_sidebar_portal(
 
     with st.sidebar:
         st.markdown(
+            textwrap.dedent(
             f"""
 <div style="background: linear-gradient(145deg, #FFFFFF 0%, #EDF0F4 100%);
      border: 1px solid #CBD5E1; border-left: 4px solid #F97316;
@@ -1313,7 +1337,8 @@ def render_sidebar_portal(
         border-radius: 50%; display: inline-block;"></span> Online
     </div>
 </div>
-            """,
+            """
+        ).strip(),
             unsafe_allow_html=True,
         )
 
@@ -1325,12 +1350,14 @@ def render_sidebar_portal(
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown(
+            textwrap.dedent(
             """
 <div style="text-align: center; font-size: 10px; color: #64748B;
      margin-top: 18px; font-weight: 600; letter-spacing: 1px;">
     POWERED BY <span style="color: #F97316;">TOTALE</span>
 </div>
-            """,
+            """
+        ).strip(),
             unsafe_allow_html=True,
         )
 

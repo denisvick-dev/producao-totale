@@ -70,7 +70,8 @@ configurar_locale()
 # ====================================================
 def injetar_css_menu_sidebar() -> None:
     st.markdown(
-        """
+        textwrap.dedent(
+            """
         <style>
         section[data-testid="stSidebar"] {
             background: linear-gradient(180deg, #F4F5F7 0%, #FFFFFF 100%) !important;
@@ -160,7 +161,8 @@ def injetar_css_menu_sidebar() -> None:
             display: flex; align-items: center; justify-content: space-between;
         }
         </style>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -906,14 +908,16 @@ def _criar_card_tooltip(
 ) -> str:
     cores = _TEMAS_CARD.get(tema, _TEMAS_CARD["azul"])
     html_tooltip = f'<div class="tooltip-premium">{tooltip}</div>' if tooltip else ""
-    return f"""
+    return textwrap.dedent(
+        f"""
     <div class="card-premium" style="background:{cores['fundo']};padding:20px;border-radius:10px; border-left:5px solid {cores['borda']}; box-shadow:0 4px 6px rgba(0,0,0,0.05); height:100%;display:flex;flex-direction:column; justify-content:center; transition:transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 15px rgba(0,0,0,0.1)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.05)';">
         <p style="margin:0;font-size:14px;color:{cores['titulo']};font-weight:700;">{icone} {titulo}</p>
         <h2 style="margin:5px 0 0;color:{cores['texto']};font-weight:900;font-size:32px;">{valor}</h2>
         <p style="margin:5px 0 0;font-size:12px;color:{'#94A3B8' if tema == 'escuro' else '#64748B'};font-weight:600;">{subtitulo}</p>
         {html_tooltip}
     </div>
-    """
+        """
+    ).strip()
 
 
 # ====================================================

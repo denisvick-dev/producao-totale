@@ -12,6 +12,7 @@ import streamlit as st
 from typing import Optional, Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import textwrap
 
 TOTALE_AZUL = "#012869"
 TOTALE_LARANJA = "#F37C04"
@@ -20,7 +21,8 @@ FUSO_HORARIO = ZoneInfo("America/Sao_Paulo")
 
 def injetar_css_sidebar_corp() -> None:
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <style>
         /* ═══════════════════════════════════════════════════
            SIDEBAR — GRADIENTE PRATA / CINZA METÁLICO CLARO
@@ -379,7 +381,8 @@ def injetar_css_sidebar_corp() -> None:
             color: {TOTALE_LARANJA};
         }}
         </style>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -407,6 +410,7 @@ def render_sidebar_corp(
 
     with st.sidebar:
         st.markdown(
+            textwrap.dedent(
             f"""
             <div class="sidebar-profile-card">
                 <div class="sidebar-brand">⚡ Totale · Portal</div>
@@ -418,7 +422,8 @@ def render_sidebar_corp(
                     <span class="sidebar-status-dot"></span> Online
                 </div>
             </div>
-            """,
+            """
+        ).strip(),
             unsafe_allow_html=True,
         )
 
@@ -461,7 +466,8 @@ def render_sidebar_info(
     role_text = f" • {role}" if role else ""
 
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="
             background: rgba(255, 255, 255, 0.12);
             border: 1px solid rgba(1, 40, 105, 0.25);
@@ -480,7 +486,8 @@ def render_sidebar_info(
             {f'<p style="color: {TOTALE_LARANJA}; font-size: 11px; margin: 2px 0;">{role_text.strip(" • ")}</p>' if role else ''}
             {f'<p style="color: #636366; font-size: 11px; margin: 4px 0 0 0; word-break: break-word;">{email}</p>' if email else ''}
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -509,7 +516,8 @@ def render_sidebar_status(
         submsg = ""
 
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="
             background: {cor_fundo};
             border: 1px solid {cor_borda};
@@ -528,7 +536,8 @@ def render_sidebar_status(
             </p>
             {submsg}
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -606,7 +615,8 @@ def render_sidebar_footer_info(
     info_text = " • ".join(info_items)
 
     st.markdown(
-        f"""
+        textwrap.dedent(
+            f"""
         <div style="
             background: rgba(0, 0, 0, 0.08);
             border-top: 1px solid rgba(1, 40, 105, 0.12);
@@ -620,7 +630,8 @@ def render_sidebar_footer_info(
         ">
             {info_text}
         </div>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
