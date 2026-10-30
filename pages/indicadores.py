@@ -108,7 +108,7 @@ VERSAO_PAGINA = "1.2.0"
 DATA_SISTEMA_STR = datetime.now().strftime("%d/%m/%Y às %H:%M")
 SEM_VINCULO = "(Sem vínculo)"
 MARGEM_CRITICA = 5.0
-TIMEOUT_REDE = 60
+TIMEOUT_REDE = (5, 60)  # (conexão, leitura)
 
 INDICADORES_ID = get_indicadores_spreadsheet_id()
 ATIVOS_ID = get_ativos_spreadsheet_id()
@@ -712,6 +712,43 @@ def resolver_chave_excel(sheet_name: str, df_sheet: pd.DataFrame) -> str | None:
 # ====================================================
 # 7. CRUZAMENTO COM A LISTA DE ATIVOS
 # ====================================================
+def montar_contexto_ativos(
+    df_ativos: pd.DataFrame | None,
+) -> tuple[ContextoAtivos | None, str]:
+    """Detecta as colunas da Lista de Ativos e monta o contexto de cruzamento."""
+    if df_ativos is None or df_ativos.empty:
+        return None, "planilha não retornou dados."
+
+    col_login = encontrar_coluna_flexivel(
+        df_ativos, ["Login", "LOGIN", "Cd_Login", "LOGIN_TEC"]
+    )
+    if not col_login:
+        return None, "coluna 'Login' não encontrada."
+
+    return (
+        ContextoAtivos(
+            df=df_ativos,
+            col_login=col_login,
+            col_user=encontrar_coluna_flexivel(
+                df_ativos, ["User", "Usuário", "Usuario", "LOGIN_USER", "USERNAME"]
+            ),
+            col_tecnico=encontrar_coluna_flexivel(
+                df_ativos, ["Tecnico", "Técnico", "TECNICO", "Nome_Tecnico"]
+            ),
+            col_monitor=encontrar_coluna_flexivel(
+                df_ativos, ["Monitor", "MONITOR", "Nome_Monitor"]
+            ),
+            col_base=encontrar_coluna_flexivel(
+                df_ativos, ["Base", "BASE", "Filial", "Unidade"]
+            ),
+            col_situacao=encontrar_coluna_flexivel(
+                df_ativos, ["Situação", "Situacao", "SITUACAO", "Status_Tecnico"]
+            ),
+        ),
+        "",
+    )
+
+
 @dataclass(frozen=True)
 class ContextoAtivos:
     df: pd.DataFrame
@@ -833,6 +870,38 @@ def montar_resultados(
             "chave_excel": None,
         }
     return resultados
+
+
+@st.cache_resource(ttl=3600, show_spinner=False)
+def preparar_dados_indicadores(
+    sheet_id: str,
+    ativos_sheet_id: str,
+    logins: tuple[str, ...],
+) -> tuple[dict[str, dict[str, Any]] | None, ContextoAtivos | None, str]:
+    """Carrega, cruza e mantém o recorte do técnico em cache entre reruns.
+
+    O cruzamento das seis abas com a Lista de Ativos é a etapa mais cara da
+    página. Sem cache ele era refeito a cada interação (inclusive ao trocar
+    apenas o período de um gráfico). ``cache_resource`` devolve os mesmos
+    objetos, sem copiar DataFrames a cada rerun.
+    """
+    excel = carregar_workbook_indicadores(sheet_id)
+    if not excel:
+        return (
+            None,
+            None,
+            "Planilha de indicadores indisponível. Verifique o ID configurado, "
+            "a conectividade e a permissão de leitura (compartilhamento público "
+            "ou service account).",
+        )
+
+    df_ativos = carregar_lista_ativos(ativos_sheet_id)
+    ativos_ctx, erro_ativos = montar_contexto_ativos(df_ativos)
+    if ativos_ctx is None:
+        return None, None, f"Lista de Ativos: {erro_ativos}"
+
+    resultados = montar_resultados(excel, ativos_ctx, logins_permitidos=set(logins))
+    return resultados, ativos_ctx, ""
 
 
 def dataframe_indicador(resultados: dict[str, dict[str, Any]], chave: str) -> pd.DataFrame | None:
@@ -1730,62 +1799,27 @@ if not INDICADORES_ID:
     )
     st.stop()
 
+logins_permitidos = tuple(
+    sorted({valor for valor in (login_logado, user_logado) if valor})
+)
+
 with st.spinner("⏳ Processando e cruzando suas bases..."):
-    excel_sheets = carregar_workbook_indicadores(INDICADORES_ID)
-    df_ativos = carregar_lista_ativos(ATIVOS_ID)
+    resultados, ativos_ctx, erro_carga = preparar_dados_indicadores(
+        INDICADORES_ID, ATIVOS_ID, logins_permitidos
+    )
 
-if not excel_sheets:
+if resultados is None or ativos_ctx is None:
     render_empty_state(
         tipo="erro",
-        titulo="Erro ao carregar a planilha de indicadores",
+        titulo="Erro ao carregar as bases de indicadores",
         descricao=(
-            "Verifique o ID configurado, a conectividade e a permissão de leitura "
-            "(compartilhamento público ou service account)."
+            f"{erro_carga} Sem a Lista de Ativos não é possível vincular técnico, "
+            "monitor e base aos seus indicadores."
         ),
     )
     st.stop()
-
-if df_ativos is None or df_ativos.empty:
-    render_empty_state(
-        tipo="erro",
-        titulo="Erro ao carregar a Lista de Ativos",
-        descricao=(
-            "A planilha de ativos não retornou dados. Sem ela não é possível vincular "
-            "técnico, monitor e base aos seus indicadores."
-        ),
-    )
-    st.stop()
-
-col_login_ativos = encontrar_coluna_flexivel(df_ativos, ["Login", "LOGIN", "Cd_Login", "LOGIN_TEC"])
-col_user_ativos = encontrar_coluna_flexivel(
-    df_ativos, ["User", "Usuário", "Usuario", "LOGIN_USER", "USERNAME"]
-)
-col_tec_ativos = encontrar_coluna_flexivel(
-    df_ativos, ["Tecnico", "Técnico", "TECNICO", "Nome_Tecnico"]
-)
-col_mon_ativos = encontrar_coluna_flexivel(df_ativos, ["Monitor", "MONITOR", "Nome_Monitor"])
-col_base_ativos = encontrar_coluna_flexivel(df_ativos, ["Base", "BASE", "Filial", "Unidade"])
-col_sit_ativos = encontrar_coluna_flexivel(
-    df_ativos, ["Situação", "Situacao", "SITUACAO", "Status_Tecnico"]
-)
-
-if not col_login_ativos:
-    st.error("❌ Coluna 'Login' não encontrada na Lista de Ativos.")
-    st.stop()
-
-ativos_ctx = ContextoAtivos(
-    df=df_ativos,
-    col_login=col_login_ativos,
-    col_user=col_user_ativos,
-    col_tecnico=col_tec_ativos,
-    col_monitor=col_mon_ativos,
-    col_base=col_base_ativos,
-    col_situacao=col_sit_ativos,
-)
 
 identidade = resolver_identidade(ativos_ctx, login_logado, user_logado, nome_logado)
-logins_permitidos = {valor for valor in (login_logado, user_logado) if valor}
-resultados = montar_resultados(excel_sheets, ativos_ctx, logins_permitidos=logins_permitidos)
 
 frames_pessoais: list[pd.DataFrame] = []
 vistos: set[int] = set()
@@ -1831,6 +1865,7 @@ with st.sidebar:
     if atraso_global is not None and atraso_global >= 2:
         st.caption(f"⚠️ Fonte {atraso_global} dias atrás da data de hoje.")
     if st.button("🔄 Atualizar bases", width="stretch", key="indicadores_refresh"):
+        preparar_dados_indicadores.clear()
         carregar_workbook_indicadores.clear()
         carregar_lista_ativos.clear()
         st.rerun()

@@ -1,15 +1,14 @@
 # utils/_database.py
-import os
 import io
-import requests
-import pandas as pd
-import streamlit as st
-from typing import Any, Dict, List, Optional
+import os
+from typing import Any
 
-import bcrypt
 import gspread
-from google.oauth2.service_account import Credentials
+import pandas as pd
+import requests
+import streamlit as st
 from google.auth.transport.requests import Request
+from google.oauth2.service_account import Credentials
 
 # Importa as configurações do seu projeto
 from ._config import (
@@ -19,6 +18,16 @@ from ._config import (
     WORKSHEET_NAME,
     get_credentials_dict,
 )
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _carregar_usuarios_cacheados(_db: "GoogleSheetsDB") -> pd.DataFrame:
+    """Cache de 5 min da base de usuários (protege a cota do Google Sheets).
+
+    O argumento ``_db`` começa com underscore para o Streamlit não tentar
+    serializar o cliente gspread na chave do cache.
+    """
+    return _db._ler_usuarios()
 
 
 class GoogleSheetsDB:
@@ -62,16 +71,19 @@ class GoogleSheetsDB:
             ws = spreadsheet.sheet1
         return ws
 
+    def _ler_usuarios(self) -> pd.DataFrame:
+        ws = self._get_worksheet(USERS_SPREADSHEET_ID)
+        records = ws.get_all_records()
+        return (
+            pd.DataFrame(records)
+            if records
+            else pd.DataFrame(columns=HEADERS_USERS)
+        )
+
     def get_users_dataframe(self) -> pd.DataFrame:
         """Base de usuários (Geralmente é Sheets nativo)."""
         try:
-            ws = self._get_worksheet(USERS_SPREADSHEET_ID)
-            records = ws.get_all_records()
-            return (
-                pd.DataFrame(records)
-                if records
-                else pd.DataFrame(columns=HEADERS_USERS)
-            )
+            return _carregar_usuarios_cacheados(self)
         except Exception as e:
             st.error(f"Erro na base de usuários: {e}")
             return pd.DataFrame(columns=HEADERS_USERS)
@@ -85,11 +97,14 @@ class GoogleSheetsDB:
             ws = self._get_worksheet(USERS_SPREADSHEET_ID)
             upload_df = df.copy().fillna("")
             rows: list[list[Any]] = [list(upload_df.columns.astype(str))]
-            for _, row in upload_df.iterrows():
-                rows.append(["" if pd.isna(value) else value for value in row.tolist()])
+            rows.extend(
+                ["" if pd.isna(valor) else valor for valor in linha]
+                for linha in upload_df.itertuples(index=False, name=None)
+            )
 
             ws.clear()
             ws.update(range_name="A1", values=rows, raw=False)
+            _carregar_usuarios_cacheados.clear()
             return True
         except Exception as e:
             st.error(f"Erro ao salvar base de usuários: {e}")
@@ -114,25 +129,28 @@ class GoogleSheetsDB:
             print(f"Erro no banco: {e}")
             return False
 
-    def find_user_by_login_or_user(self, identifier: str) -> Optional[Dict[str, Any]]:
+    def find_user_by_login_or_user(self, identifier: str) -> dict[str, Any] | None:
         df = self.get_users_dataframe()
         if df.empty:
             return None
 
         ident = identifier.strip().lower()
-        for _, row in df.iterrows():
-            if ident in [
-                str(row.get("Login", "")).lower(),
-                str(row.get("User", "")).lower(),
-            ]:
-                return {str(key): value for key, value in row.to_dict().items()}
+        candidatos = [
+            coluna
+            for coluna in ("Login", "User")
+            if coluna in df.columns
+        ]
+        for coluna in candidatos:
+            mascara = df[coluna].astype(str).str.strip().str.lower() == ident
+            if bool(mascara.any()):
+                return {str(key): value for key, value in df.loc[mascara].iloc[0].to_dict().items()}
         return None
 
     # ========================================================
     # LOGICA ESPECIAL PARA PRODUÇÃO (EXCEL .XLSX)
     # ========================================================
 
-    def _get_auth_headers(self) -> Dict[str, str]:
+    def _get_auth_headers(self) -> dict[str, str]:
         """Retorna cabe?alhos autenticados para requisi??es ao Google Drive."""
         if not self.credentials.valid or not getattr(self.credentials, "token", None):
             self.credentials.refresh(Request())
@@ -220,6 +238,7 @@ class GoogleSheetsDB:
     def _download_excel_sheet(self, file_id: str, sheet_name: str) -> pd.DataFrame:
         """Download binário do Excel e leitura de uma aba específica."""
         import io
+
         import requests
         from google.auth.transport.requests import Request
 

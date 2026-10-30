@@ -13,6 +13,9 @@ metas e indicadores operacionais.
 
 ## Execução local
 
+> Requer **Python 3.12 ou superior** (as versões fixadas de `numpy` e
+> `contourpy` usam esse requisito).
+
 1. Crie ou ative o ambiente virtual.
 
 2. Instale as dependências:

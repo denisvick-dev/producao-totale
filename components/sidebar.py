@@ -8,11 +8,13 @@ Uso:
     render_sidebar_corp(on_logout=lambda: st.session_state.clear())
 """
 
-import streamlit as st
-from typing import Optional, Callable
+import html
+import textwrap
+from collections.abc import Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import textwrap
+
+import streamlit as st
 
 TOTALE_AZUL = "#012869"
 TOTALE_LARANJA = "#F37C04"
@@ -397,7 +399,7 @@ def _iniciais(nome: str) -> str:
 
 
 def render_sidebar_corp(
-    on_logout: Optional[Callable[[], None]] = None,
+    on_logout: Callable[[], None] | None = None,
     logout_page: str = "streamlit_app.py",
     show_nav_hint: bool = False,  # aceito por compatibilidade; não exibe nada
 ) -> None:
@@ -429,7 +431,7 @@ def render_sidebar_corp(
 
         st.divider()
 
-        if st.button("🚪 Encerrar Sessão", use_container_width=True, type="secondary"):
+        if st.button("🚪 Encerrar Sessão", width="stretch", type="secondary"):
             if on_logout:
                 on_logout()
             else:
@@ -449,9 +451,9 @@ def render_sidebar_corp(
 
 def render_sidebar_info(
     user_name: str = "Usuário",
-    email: Optional[str] = None,
-    role: Optional[str] = None,
-    avatar: Optional[str] = None,
+    email: str | None = None,
+    role: str | None = None,
+    avatar: str | None = None,
 ) -> None:
     """
     Renderiza bloco de informações do usuário logado no topo do sidebar.
@@ -463,7 +465,7 @@ def render_sidebar_info(
         avatar: URL ou emoji do avatar (opcional)
     """
     avatar_text = avatar or "👤"
-    role_text = f" • {role}" if role else ""
+    role_limpo = html.escape(str(role).strip()) if role else ""
 
     st.markdown(
         textwrap.dedent(
@@ -482,9 +484,9 @@ def render_sidebar_info(
                 font-weight: 700;
                 font-size: 13px;
                 margin: 0 0 4px 0;
-            ">{user_name}</p>
-            {f'<p style="color: {TOTALE_LARANJA}; font-size: 11px; margin: 2px 0;">{role_text.strip(" • ")}</p>' if role else ''}
-            {f'<p style="color: #636366; font-size: 11px; margin: 4px 0 0 0; word-break: break-word;">{email}</p>' if email else ''}
+            >{html.escape(str(user_name))}</p>
+            {f'<p style="color: {TOTALE_LARANJA}; font-size: 11px; margin: 2px 0;">{role_limpo}</p>' if role_limpo else ''}
+            {f'<p style="color: #636366; font-size: 11px; margin: 4px 0 0 0; word-break: break-word;">{html.escape(str(email))}</p>' if email else ''}
         </div>
         """
         ).strip(),
@@ -494,7 +496,7 @@ def render_sidebar_info(
 
 def render_sidebar_status(
     sistema_ok: bool = True,
-    ultima_atualizacao: Optional[datetime] = None,
+    ultima_atualizacao: datetime | None = None,
     mensagem: str = "Sistema operacional",
 ) -> None:
     """
@@ -545,9 +547,9 @@ def render_sidebar_status(
 def render_sidebar_filtro(
     label: str,
     options: list,
-    default: Optional[str] = None,
-    key: Optional[str] = None,
-    help_text: Optional[str] = None,
+    default: str | None = None,
+    key: str | None = None,
+    help_text: str | None = None,
     multi: bool = False,
 ):
     """

@@ -1,19 +1,17 @@
 # pages/producao.py
-import io
 import calendar
 import datetime
+import io
 import locale
-import requests
 import textwrap
 from datetime import timedelta
-from io import BytesIO
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import requests
 import streamlit as st
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
 
 # ====================================================
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -43,11 +41,11 @@ try:
     from components.componentes import (
         aplicar_estilo,
         aplicar_tema_claro,
+        injetar_css_menu_nomes,
         render_hero_totale_1,
         render_insight,
         render_section_header,
         render_sidebar_portal,
-        injetar_css_menu_nomes,
     )
 except ImportError:
     st.error("⚠️ Módulo 'componentes.py' não encontrado.")
@@ -67,17 +65,13 @@ configurar_locale()
 
 
 # ====================================================
-# 4. CSS DO MENU E SIDEBAR UNIFICADO
+# 4. CSS ESPECÍFICO DA PÁGINA DE PRODUÇÃO
 # ====================================================
-def injetar_css_menu_sidebar() -> None:
+def injetar_css_producao() -> None:
     st.markdown(
         textwrap.dedent(
             """
         <style>
-        section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #F4F5F7 0%, #FFFFFF 100%) !important;
-            border-right: 1px solid #E2E8F0 !important;
-        }
         .card-premium { position: relative; cursor: help; }
         .tooltip-premium {
             visibility: hidden; background-color: #1E293B; color: #F8FAFC;
@@ -148,7 +142,7 @@ def carregar_base_producao() -> pd.DataFrame:
     ]
     for url in urls:
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=(5, 30))
         except requests.RequestException:
             continue
         if resp.status_code != 200 or len(resp.content) <= 100:
@@ -191,7 +185,7 @@ def carregar_base_producao() -> pd.DataFrame:
             {"sep": ";", "encoding": "latin-1"},
             {"sep": ",", "encoding": "utf-8"},
         ):
-            csv_kwargs: Dict[str, Any] = dict(csv_kwargs)
+            csv_kwargs: dict[str, Any] = dict(csv_kwargs)
             try:
                 df = pd.read_csv(io.BytesIO(content), **csv_kwargs)
                 if not df.empty and df.shape[1] > 1:
@@ -217,7 +211,7 @@ def carregar_base_producao_mes_anterior() -> pd.DataFrame:
     ]
     for url in urls:
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=(5, 30))
         except requests.RequestException:
             continue
         if resp.status_code != 200 or len(resp.content) <= 100:
@@ -260,7 +254,7 @@ def carregar_base_producao_mes_anterior() -> pd.DataFrame:
             {"sep": ";", "encoding": "latin-1"},
             {"sep": ",", "encoding": "utf-8"},
         ):
-            csv_kwargs: Dict[str, Any] = dict(csv_kwargs)
+            csv_kwargs: dict[str, Any] = dict(csv_kwargs)
             try:
                 df = pd.read_csv(io.BytesIO(content), **csv_kwargs)
                 if not df.empty and df.shape[1] > 1:
@@ -287,7 +281,7 @@ def carregar_base_ativos() -> pd.DataFrame:
     ]
     for url in urls:
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=(5, 30))
         except requests.RequestException:
             continue
         if resp.status_code != 200 or len(resp.content) <= 100:
@@ -299,7 +293,7 @@ def carregar_base_ativos() -> pd.DataFrame:
                 abas = pd.read_excel(
                     io.BytesIO(content), sheet_name=None, engine="openpyxl"
                 )
-                for _, df_aba in abas.items():
+                for df_aba in abas.values():
                     if not df_aba.empty and df_aba.shape[1] > 1:
                         return df_aba
             except Exception:
@@ -310,7 +304,7 @@ def carregar_base_ativos() -> pd.DataFrame:
             {"sep": ";", "encoding": "latin-1"},
             {"sep": ",", "encoding": "utf-8"},
         ):
-            csv_kwargs: Dict[str, Any] = dict(csv_kwargs)
+            csv_kwargs: dict[str, Any] = dict(csv_kwargs)
             try:
                 df = pd.read_csv(io.BytesIO(content), **csv_kwargs)
                 if not df.empty and df.shape[1] > 1:
@@ -332,7 +326,7 @@ def carregar_base_ativos() -> pd.DataFrame:
 # ====================================================
 class Utilitarios:
     @staticmethod
-    def buscar_coluna(df: pd.DataFrame, palavras_chave: List[str]) -> Optional[str]:
+    def buscar_coluna(df: pd.DataFrame, palavras_chave: list[str]) -> str | None:
         cols_upper = {str(c).upper().strip(): str(c) for c in df.columns}
         for palavra in palavras_chave:
             key = palavra.upper().strip()
@@ -341,7 +335,7 @@ class Utilitarios:
         return None
 
     @staticmethod
-    def encontrar_coluna_data(df: pd.DataFrame) -> Optional[str]:
+    def encontrar_coluna_data(df: pd.DataFrame) -> str | None:
         return Utilitarios.buscar_coluna(
             df,
             ["Data Agendamento", "Data Conclusão", "Data", "Date", "Data_Execucao"],
@@ -421,7 +415,7 @@ class Utilitarios:
         return "font-weight:700;border-left:3px solid #EF4444;text-align:center;"
 
     @staticmethod
-    def obter_feriados_nacionais(ano: int) -> List[datetime.date]:
+    def obter_feriados_nacionais(ano: int) -> list[datetime.date]:
         """
         Calcula os feriados nacionais fixos e móveis brasileiros para o ano informado.
         Inclui Carnaval, Sexta-feira Santa, Corpus Christi e Consciência Negra.
@@ -462,7 +456,7 @@ class Utilitarios:
 
     @staticmethod
     def calcular_dias_uteis(
-        df: pd.DataFrame, col_data: Optional[str] = None
+        df: pd.DataFrame, col_data: str | None = None
     ) -> tuple[int, int, Any, int]:
         """
         Calcula os dias úteis do mês (Segunda a Sábado, exceto Domingos e Feriados).
@@ -596,7 +590,7 @@ class Graficos:
         x_col: str,
         y_bar: str,
         y_line: str,
-        meta_dia: Optional[float] = None,
+        meta_dia: float | None = None,
     ) -> go.Figure:
         df_plot = df.copy()
 
@@ -712,7 +706,7 @@ class ProcessamentoDados:
         pontos_atuais: float, dias_restantes: int
     ) -> pd.DataFrame:
         seguros = max(1, dias_restantes)
-        linhas: List[Dict[str, Any]] = []
+        linhas: list[dict[str, Any]] = []
         for meta in METAS_MENSAIS:
             falta = max(0.0, float(meta) - pontos_atuais)
             pct = min(100.0, (pontos_atuais / meta) * 100) if meta else 0.0
@@ -743,9 +737,9 @@ class ProcessamentoDados:
     def calcular_contexto_geral(
         df_global: pd.DataFrame,
         col_pontos: str,
-        col_tec: Optional[str],
-        identidade: Optional[str],
-    ) -> tuple[float, int, Optional[int]]:
+        col_tec: str | None,
+        identidade: str | None,
+    ) -> tuple[float, int, int | None]:
         pontos_globais = float(df_global[col_pontos].sum())
         if not col_tec or col_tec not in df_global.columns or not identidade:
             return pontos_globais, 0, None
@@ -757,9 +751,9 @@ class ProcessamentoDados:
                 .sum()
                 .sort_values(ascending=False)
             )
-            total_tecnicos = int(len(ranking))
+            total_tecnicos = len(ranking)
             ident = identidade.strip().upper()
-            posicao: Optional[int] = None
+            posicao: int | None = None
             if ident in ranking.index:
                 loc = ranking.index.get_loc(ident)
                 if isinstance(loc, (int, np.integer)):
@@ -836,7 +830,7 @@ def _criar_card_tooltip(
 # ====================================================
 aplicar_estilo()
 aplicar_tema_claro()
-injetar_css_menu_sidebar()
+injetar_css_producao()
 injetar_css_menu_nomes()
 render_sidebar_perfil()
 
@@ -863,8 +857,11 @@ df_prod_raw = carregar_base_producao()
 df_ativos_raw = carregar_base_ativos()
 df_prod_mes_ant_raw = carregar_base_producao_mes_anterior()
 
-df_raw = realizar_merge_producao_ativos(df_prod_raw, df_ativos_raw)
-df_raw_mes_ant = realizar_merge_producao_ativos(df_prod_mes_ant_raw, df_ativos_raw)
+# A base completa é mantida sem o merge para os indicadores globais. O
+# cruzamento com a Lista de Ativos é feito somente depois do recorte do
+# técnico (abaixo), evitando copiar a base inteira a cada interação.
+df_raw = df_prod_raw
+df_raw_mes_ant = df_prod_mes_ant_raw
 
 loader.empty()
 
@@ -896,7 +893,10 @@ def filtrar_tecnico(df: pd.DataFrame) -> pd.DataFrame:
         "USERNAME",
         "CODAUXEQUIP",
         "CODAUXEQUIPE",
+        "CÓDAUXEQUIPE",
         "COD_AUX_EQUIPE",
+        "LOGIN NETSALES",
+        "LOGIN_NETSALES",
     }
     colunas_nome = {
         "TECNICO",
@@ -911,22 +911,41 @@ def filtrar_tecnico(df: pd.DataFrame) -> pd.DataFrame:
 
     for col in df.columns:
         col_name = str(col).strip().upper()
+        identificar = col_name in colunas_identidade
+        comparar_nome = col_name in colunas_nome and bool(nome_logado)
+        if not (identificar or comparar_nome):
+            continue
+
+        # Só normaliza as colunas candidatas: antes, todas as dezenas de
+        # colunas da base eram convertidas para texto em cada rerun.
         col_series = df[col].astype(str).str.strip().str.upper()
 
-        if col_name in colunas_identidade:
-            if login_logado:
-                mask |= col_series.eq(login_logado)
-            if user_logado:
-                mask |= col_series.eq(user_logado)
+        if identificar:
+            for valor in (login_logado, user_logado):
+                if valor:
+                    mask |= col_series.eq(valor)
 
-        if col_name in colunas_nome:
-            if nome_logado:
-                mask |= col_series.eq(nome_logado)
+        if comparar_nome:
+            mask |= col_series.eq(nome_logado)
     return df[mask].copy()
 
 
-df_prod = filtrar_tecnico(df_raw)
-df_prod_mes_ant = filtrar_tecnico(df_raw_mes_ant)
+def preparar_recorte_tecnico(
+    df_base: pd.DataFrame, df_ativos: pd.DataFrame
+) -> pd.DataFrame:
+    """Filtra o técnico antes do merge e só cruza a base inteira se preciso.
+
+    Em bases nas quais a identificação do técnico só aparece depois do merge
+    com a Lista de Ativos, o fallback mantém o comportamento anterior.
+    """
+    recorte = filtrar_tecnico(df_base)
+    if recorte.empty and not df_base.empty:
+        return filtrar_tecnico(realizar_merge_producao_ativos(df_base, df_ativos))
+    return realizar_merge_producao_ativos(recorte, df_ativos)
+
+
+df_prod = preparar_recorte_tecnico(df_raw, df_ativos_raw)
+df_prod_mes_ant = preparar_recorte_tecnico(df_raw_mes_ant, df_ativos_raw)
 
 if df_prod.empty:
     render_insight(
@@ -939,7 +958,7 @@ if df_prod.empty:
 col_tec_global = Utilitarios.buscar_coluna(
     df_raw, ["TECNICO", "TÉCNICO", "NOME", "COLABORADOR", "NOME EQUIPE"]
 )
-identidade_tec: Optional[str] = None
+identidade_tec: str | None = None
 if col_tec_global and col_tec_global in df_prod.columns:
     try:
         moda = df_prod[col_tec_global].dropna().astype(str).str.strip().mode()
@@ -1006,17 +1025,17 @@ with st.container(border=True):
             st.write("")
             st.write("")
             b1, b2, b3 = st.columns(3)
-            if b1.button("Hoje", use_container_width=True):
+            if b1.button("Hoje", width="stretch"):
                 st.session_state["filtro_data_inicio"] = max_date
                 st.session_state["filtro_data_fim"] = max_date
                 st.rerun()
-            if b2.button("7 dias", use_container_width=True):
+            if b2.button("7 dias", width="stretch"):
                 st.session_state["filtro_data_inicio"] = max(
                     min_date, max_date - timedelta(days=6)
                 )
                 st.session_state["filtro_data_fim"] = max_date
                 st.rerun()
-            if b3.button("Mês", use_container_width=True):
+            if b3.button("Mês", width="stretch"):
                 st.session_state["filtro_data_inicio"] = max(
                     min_date, max_date.replace(day=1)
                 )
@@ -1169,14 +1188,14 @@ media_pontos = t_pontos / t_os if t_os > 0 else 0.0
 
 pontos_globais = 0.0
 t_os_global = 0
-posicao_geral: Optional[int] = None
+posicao_geral: int | None = None
 total_tecnicos = 0
 
 col_projeto = Utilitarios.buscar_coluna(
     df_raw, ["PROJETO", "CAMPANHA", "OPERAÇÃO", "OPERACAO", "CONTRATO_PROJETO"]
 )
 
-projeto_tecnico: Optional[str] = None
+projeto_tecnico: str | None = None
 if col_projeto and col_projeto in df_tec_prod.columns:
     try:
         moda_proj = df_tec_prod[col_projeto].dropna().astype(str).str.strip().mode()
@@ -1448,7 +1467,7 @@ if not df_metas.empty and col_pontos:
 
     st.dataframe(
         styler_metas,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Meta": st.column_config.NumberColumn("🎯 Meta Mensal", format="%.0f"),
@@ -1496,7 +1515,7 @@ if col_data and col_data in df_tec_prod.columns and col_pontos:
         Graficos.grafico_combo_raiox(
             df_tempo, col_data, "Qtd_OS", "Pontos", meta_dia=meta_dia_principal
         ),
-        use_container_width=True,
+        width="stretch",
         config={"displayModeBar": False},
     )
     st.caption(
