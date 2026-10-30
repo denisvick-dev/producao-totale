@@ -1,7 +1,7 @@
 # pages/consultivo.py
 import io
 import locale
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -327,11 +327,12 @@ def _ler_planilha(conteudo: bytes) -> pd.DataFrame:
     o ``read_csv``/``read_excel`` continuar da posição deixada pela tentativa
     anterior, o que podia devolver uma base truncada.
     """
-    for kwargs in (
+    tentativas_csv: tuple[dict[str, Any], ...] = (
         {"sep": None, "engine": "python", "encoding": "utf-8"},
         {"sep": ";", "encoding": "latin-1"},
         {"sep": ",", "encoding": "utf-8"},
-    ):
+    )
+    for kwargs in tentativas_csv:
         try:
             df = pd.read_csv(io.BytesIO(conteudo), **kwargs)
             if not df.empty and df.shape[1] > 1:
