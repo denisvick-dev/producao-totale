@@ -958,6 +958,14 @@ if df_prod.empty:
 col_tec_global = Utilitarios.buscar_coluna(
     df_raw, ["TECNICO", "TÉCNICO", "NOME", "COLABORADOR", "NOME EQUIPE"]
 )
+if not col_tec_global and not df_ativos_raw.empty:
+    # Bases antigas podem identificar o técnico apenas na Lista de Ativos.
+    # Nesse caso o merge completo (feito uma única vez) alimenta o ranking.
+    df_raw = realizar_merge_producao_ativos(df_raw, df_ativos_raw)
+    col_tec_global = Utilitarios.buscar_coluna(
+        df_raw, ["TECNICO", "TÉCNICO", "NOME", "COLABORADOR", "NOME EQUIPE"]
+    )
+
 identidade_tec: str | None = None
 if col_tec_global and col_tec_global in df_prod.columns:
     try:
