@@ -11,7 +11,7 @@ ATIVOS_SPREADSHEET_ID: str = "1LQKDcLshC6XSXLBVWaEYSpxrro6uydyU9pwDLc38pEg"
 # Geoloc_Os, OS_Digital, Aderencia_Ura, Nr35, Tec1 e Baixa_Pda.
 # Informe o ID aqui ou, preferencialmente, nos Secrets do Streamlit com a
 # chave "indicadores_spreadsheet_id".
-INDICADORES_SPREADSHEET_ID: str = ""
+INDICADORES_SPREADSHEET_ID: str = "1k6NrvdZzdSV_sGOQkMKIssEhh7p7wyO0"
 
 WORKSHEET_NAME: int = 0  # Primeira aba de cada planilha
 
