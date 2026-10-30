@@ -922,36 +922,18 @@ def render_progress_bar(
         pct = 0.0
     pct = max(0.0, min(100.0, pct))
 
-    altura_px = {"pequeno": 6, "medio": 10, "grande": 14}.get(altura, 10)
-    label_html = (
-        f'<div style="font-family:{FONTE_TEXTO};font-size:11px;color:{COR_TEXTO_3};'
-        f'font-weight:600;margin-bottom:6px;">{html.escape(str(label))}</div>'
-        if label
-        else ""
-    )
-    valor_html = (
-        f'<span style="font-family:{FONTE_TITULO};font-size:12px;color:{cor};'
-        f'font-weight:800;font-variant-numeric:tabular-nums;min-width:44px;'
-        f'text-align:right;">{pct:.1f}%</span>'
-        if mostrar_valor
-        else ""
-    )
-    st.markdown(
-        textwrap.dedent(
-            f"""
-        <div style="margin:8px 0 14px 0;">
-            {label_html}
-            <div style="display:flex;align-items:center;gap:10px;">
-                <div style="flex:1;background:#E2E8F0;border-radius:999px;height:{altura_px}px;overflow:hidden;">
-                    <div style="width:{pct:.2f}%;height:100%;background:{cor};border-radius:999px;transition:width 0.4s ease;"></div>
-                </div>
-                {valor_html}
-            </div>
-        </div>
-        """
-        ).strip(),
-        unsafe_allow_html=True,
-    )
+    if label:
+        st.caption(str(label))
+
+    if mostrar_valor:
+        col_barra, col_valor = st.columns([5, 1])
+        with col_barra:
+            st.progress(pct / 100.0, text="")
+        with col_valor:
+            st.caption(f"{pct:.1f}%")
+        return
+
+    st.progress(pct / 100.0, text="")
 
 
 _EMPTY_STATE_CONFIG: dict[str, tuple[str, str, str, str]] = {

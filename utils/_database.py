@@ -132,6 +132,17 @@ class GoogleSheetsDB:
     # LOGICA ESPECIAL PARA PRODUÇÃO (EXCEL .XLSX)
     # ========================================================
 
+    def _get_auth_headers(self) -> Dict[str, str]:
+        """Retorna cabe?alhos autenticados para requisi??es ao Google Drive."""
+        if not self.credentials.valid or not getattr(self.credentials, "token", None):
+            self.credentials.refresh(Request())
+
+        token = getattr(self.credentials, "token", None)
+        if not token:
+            raise RuntimeError("Token de autentica??o do Google n?o dispon?vel.")
+
+        return {"Authorization": f"Bearer {token}"}
+
     def _download_binary_excel(self, file_id: str) -> pd.DataFrame:
         """
         Faz o download de um arquivo que é EXCEL (.xlsx) dentro do Drive.
@@ -143,8 +154,8 @@ class GoogleSheetsDB:
         # URL para baixar arquivos binários (não-nativos do Google) do Drive
         url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
 
-        headers = {"Authorization": f"Bearer {self.credentials.token}"}
-        response = requests.get(url, headers=headers)
+        headers = self._get_auth_headers()
+        response = requests.get(url, headers=headers, timeout=60)
 
         if response.status_code == 200:
             # Lê o binário .xlsx usando engine openpyxl
@@ -216,8 +227,8 @@ class GoogleSheetsDB:
             self.credentials.refresh(Request())
 
         url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
-        headers = {"Authorization": f"Bearer {self.credentials.token}"}
-        response = requests.get(url, headers=headers)
+        headers = self._get_auth_headers()
+        response = requests.get(url, headers=headers, timeout=60)
 
         if response.status_code != 200:
             return pd.DataFrame()
