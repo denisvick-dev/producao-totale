@@ -37,8 +37,8 @@ centralizados em `utils/_config.py`.
 
 `pages/indicadores.py` cruza seis abas operacionais com a Lista de Ativos e
 mostra **apenas os registros do técnico logado**: visão consolidada dos seis
-indicadores, plano de ação com as ocorrências individuais e um painel por
-indicador. O login da sessão é aplicado como filtro antes do merge, então a
+indicadores e um painel por indicador com o recorte de período e a evolução
+diária. O login da sessão é aplicado como filtro antes do merge, então a
 página não expõe dados de outros profissionais.
 
 A planilha de indicadores precisa conter as abas `Geoloc_Os`,
@@ -53,3 +53,17 @@ indicadores_spreadsheet_id = "SEU_ID_AQUI"
 Alternativamente, preencha `INDICADORES_SPREADSHEET_ID` em
 `utils/_config.py`. A planilha pode ser lida por exportação pública ou, se
 estiver restrita, pela service account configurada em `gcp_service_account`.
+
+## Blocos HTML
+
+Blocos HTML multilinha enviados ao Streamlit devem ser dedentados antes da
+renderização (`textwrap.dedent(...).strip()`). Sem isso, a indentação do
+código-fonte é interpretada como bloco de código e a página mostra as tags
+`<div>` cruas em vez do componente.
+
+## Sidebar
+
+Todas as páginas autenticadas usam o mesmo card de perfil/logout
+(`render_sidebar_portal`) e o mesmo menu lateral (`injetar_css_menu_nomes`),
+com os itens Produtividade, Consultivo, Indicadores e Admin. O item Admin só
+aparece para perfis administrativos.

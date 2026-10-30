@@ -46,7 +46,8 @@ try:
         render_hero_totale_1,
         render_insight,
         render_section_header,
-        injetar_css_menu_nomes,  # noqa: F401
+        render_sidebar_portal,
+        injetar_css_menu_nomes,
     )
 except ImportError:
     st.error("⚠️ Módulo 'componentes.py' não encontrado.")
@@ -70,58 +71,12 @@ configurar_locale()
 # ====================================================
 def injetar_css_menu_sidebar() -> None:
     st.markdown(
-        """
+        textwrap.dedent(
+            """
         <style>
         section[data-testid="stSidebar"] {
             background: linear-gradient(180deg, #F4F5F7 0%, #FFFFFF 100%) !important;
             border-right: 1px solid #E2E8F0 !important;
-        }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child { display: none !important; }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul {
-            display: flex !important;
-            flex-direction: column !important;
-        }
-        
-        /* Oculta o botão Admin para técnicos */
-        [data-testid="stSidebarNav"] a[href*="admin"] { display: none !important; }
-
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="producao"]) { order: 1 !important; }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:has(a[href*="consultivo"]) { order: 2 !important; }
-
-        [data-testid="stSidebarNav"] a[href*="consultivo"] span { font-size: 0 !important; }
-        [data-testid="stSidebarNav"] a[href*="consultivo"] span::before { content: "🗣️ Consultivo" !important; font-size: 14px !important; font-weight: 700 !important; color: #1E293B !important; }
-
-        [data-testid="stSidebarNav"] a[href*="producao"] span { font-size: 0 !important; }
-        [data-testid="stSidebarNav"] a[href*="producao"] span::before { content: "📊 Produtividade" !important; font-size: 14px !important; font-weight: 700 !important; color: #1E293B !important; }
-
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
-            background: #F8FAFC !important;
-            border: 1px solid #E2E8F0 !important;
-            border-radius: 8px !important;
-            margin: 4px 16px !important;
-            padding: 10px 14px !important;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
-            transition: all 0.2s ease;
-        }
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"],
-        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] {
-            background: linear-gradient(90deg, #FFF7ED 0%, #FFEDD5 100%) !important;
-            border: 1px solid #F97316 !important;
-            border-left: 4px solid #F97316 !important;
-            box-shadow: 0 4px 10px rgba(249, 115, 22, 0.1) !important;
-        }
-        .btn-logout button {
-            background: linear-gradient(180deg, #E2E8F0 0%, #CBD5E1 100%) !important;
-            border: 1px solid #94A3B8 !important;
-            color: #1E293B !important;
-            font-weight: 600 !important;
-            border-radius: 8px !important;
-            margin-top: 10px !important;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.05) !important;
-        }
-        .btn-logout button:hover {
-            background: #F1F5F9 !important;
-            border-color: #64748B !important;
         }
         .card-premium { position: relative; cursor: help; }
         .tooltip-premium {
@@ -160,62 +115,20 @@ def injetar_css_menu_sidebar() -> None:
             display: flex; align-items: center; justify-content: space-between;
         }
         </style>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
 
 def render_sidebar_perfil() -> None:
-    partes_nome = nome_logado.split()
-    if len(partes_nome) >= 2:
-        iniciais = partes_nome[0][0] + partes_nome[1][0]
-    elif len(partes_nome) == 1:
-        iniciais = partes_nome[0][:2]
-    else:
-        iniciais = "US"
-
-    with st.sidebar:
-        st.html(
-            textwrap.dedent(f"""
-            <div style="background: linear-gradient(145deg, #F8FAFC 0%, #E2E8F0 100%);
-                        border: 1px solid #CBD5E1; border-left: 4px solid #F97316;
-                        border-radius: 12px; padding: 16px; margin: 16px;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-                <div style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: #F97316; margin-bottom: 12px;">
-                    ⚡ TOTALE · PORTAL
-                </div>
-                <div style="width: 52px; height: 52px; border-radius: 50%;
-                            background: linear-gradient(135deg, #012869 0%, #F97316 100%);
-                            color: #FFFFFF !important; display: flex; align-items: center; justify-content: center;
-                            font-size: 18px; font-weight: 800; margin-bottom: 12px;
-                            box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
-                    {iniciais}
-                </div>
-                <p style="color: #012869; font-weight: 800; font-size: 14px; margin: 0 0 12px 0; line-height: 1.2;">
-                    {nome_logado or 'TÉCNICO NÃO IDENTIFICADO'}
-                </p>
-                <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
-                    <div style="font-size: 12px; color: #475569;">
-                        Login: <span style="background: #E2E8F0; border: 1px solid #CBD5E1; color: #0F172A; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: 600;">{login_logado or 'N/A'}</span>
-                    </div>
-                    <div style="font-size: 12px; color: #475569;">
-                        User: <span style="background: #E2E8F0; border: 1px solid #CBD5E1; color: #0F172A; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: 600;">{user_logado or 'N/A'}</span>
-                    </div>
-                </div>
-                <div style="background: #D1FAE5; border: 1px solid #6EE7B7; color: #065F46;
-                            padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
-                            display: inline-flex; align-items: center; gap: 6px;">
-                    <div style="width: 6px; height: 6px; background: #10B981; border-radius: 50%;"></div>
-                    Online
-                </div>
-            </div>
-                """),
-        )
-        st.markdown('<div class="btn-logout">', unsafe_allow_html=True)
-        if st.button("🚪 Encerrar Sessão", use_container_width=True):
-            st.session_state["authenticated"] = False
-            st.switch_page("streamlit_app.py")
-        st.markdown("</div>", unsafe_allow_html=True)
+    render_sidebar_portal(
+        nome=nome_logado,
+        login=login_logado,
+        user=user_logado,
+        pagina_logout="streamlit_app.py",
+        perfil=str(info_logado.get("perfil", "")),
+    )
 
 
 # ====================================================
@@ -906,14 +819,16 @@ def _criar_card_tooltip(
 ) -> str:
     cores = _TEMAS_CARD.get(tema, _TEMAS_CARD["azul"])
     html_tooltip = f'<div class="tooltip-premium">{tooltip}</div>' if tooltip else ""
-    return f"""
+    return textwrap.dedent(
+        f"""
     <div class="card-premium" style="background:{cores['fundo']};padding:20px;border-radius:10px; border-left:5px solid {cores['borda']}; box-shadow:0 4px 6px rgba(0,0,0,0.05); height:100%;display:flex;flex-direction:column; justify-content:center; transition:transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 15px rgba(0,0,0,0.1)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.05)';">
         <p style="margin:0;font-size:14px;color:{cores['titulo']};font-weight:700;">{icone} {titulo}</p>
         <h2 style="margin:5px 0 0;color:{cores['texto']};font-weight:900;font-size:32px;">{valor}</h2>
         <p style="margin:5px 0 0;font-size:12px;color:{'#94A3B8' if tema == 'escuro' else '#64748B'};font-weight:600;">{subtitulo}</p>
         {html_tooltip}
     </div>
-    """
+        """
+    ).strip()
 
 
 # ====================================================
@@ -922,6 +837,7 @@ def _criar_card_tooltip(
 aplicar_estilo()
 aplicar_tema_claro()
 injetar_css_menu_sidebar()
+injetar_css_menu_nomes()
 render_sidebar_perfil()
 
 nome_exibicao = nome_logado.title() if nome_logado else (user_logado or login_logado)
