@@ -16,6 +16,7 @@ Fontes corporativas:
 
 from __future__ import annotations
 
+import html
 import logging
 import re
 from typing import Any, Callable, Literal, Union
@@ -104,6 +105,15 @@ _TEMA_CORES: dict[str, str] = {
     "vermelho": COR_ALERTA,
     "laranja": COR_SECUNDARIA,
     "cinza": COR_NEUTRO,
+}
+
+#: Fundos suaves usados quando ``render_kpi(colorida=True)``.
+_FUNDO_KPI: dict[str, str] = {
+    "azul": "#F1F5F9",
+    "verde": "#E8F4EF",
+    "vermelho": "#FDECEA",
+    "laranja": "#FFF3E4",
+    "cinza": "#F3F5F7",
 }
 
 _INSIGHT_CONFIG: dict[str, tuple[str, str, str, str]] = {
@@ -786,14 +796,48 @@ def render_section_header(icon: str, title: str, badge: str = "") -> None:
 
 
 def render_kpi(
-    col: Any, label: str, valor: str, sub: str = "", tema: TemaKPI = "azul"
+    col: Any,
+    label: str,
+    valor: str,
+    sub: str = "",
+    tema: TemaKPI = "azul",
+    *,
+    delta: str = "",
+    delta_tipo: Literal["up", "down", "neutral", "none"] = "none",
+    colorida: bool = False,
 ) -> None:
+    """Card de KPI do design system.
+
+    ``delta`` e ``delta_tipo`` são opcionais: quando informados, o desvio é
+    exibido logo abaixo do valor principal com a cor semântica correspondente.
+    ``colorida`` aplica um leve tingimento de fundo na cor do tema.
+    """
     cor = _resolver_cor_tema(tema)
+    fundo = _FUNDO_KPI.get(tema, "#FFFFFF") if colorida else "#FFFFFF"
+
+    delta_html = ""
+    if delta:
+        cores_delta = {
+            "up": COR_SUCESSO,
+            "down": COR_ALERTA,
+            "neutral": COR_NEUTRO,
+            "none": COR_TEXTO_3,
+        }
+        setas = {"up": "▲", "down": "▼", "neutral": "■", "none": ""}
+        cor_delta = cores_delta.get(delta_tipo, COR_TEXTO_3)
+        seta = setas.get(delta_tipo, "")
+        delta_html = (
+            f'<div class="kpi-delta" style="font-family:{FONTE_TEXTO};font-size:12px;'
+            f'color:{cor_delta};font-weight:700;margin-top:8px;'
+            f'font-variant-numeric:tabular-nums;">{seta} {delta}</div>'
+        )
+
     col.markdown(
         f"""
-        <div class="kpi-card" style="border-left-color:{cor};">
+        <div class="kpi-card" style="border-left-color:{cor};background:{fundo};">
             <div class="kpi-label">{label}</div>
             <div class="kpi-value" style="color:{cor};">{valor}</div>
+            {delta_html}
             <div class="kpi-sub">{sub}</div>
         </div>
         """,
@@ -827,6 +871,238 @@ def render_insight(msg: str, tipo: TipoInsight = "info") -> None:
         f"""
         <div style="background:{bg};color:{texto};border-left:4px solid {borda};padding:12px 16px;border-radius:var(--radius-sm);margin:12px 0;font-family:{FONTE_TEXTO};font-size:14px;line-height:1.6;font-weight:500;">
             <span style="margin-right:8px;font-size:15px;">{icone}</span>{msg_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_progress_bar(
+    valor: float,
+    maximo: float = 100.0,
+    label: str = "",
+    mostrar_valor: bool = True,
+    tema: TemaKPI = "azul",
+    altura: Literal["pequeno", "medio", "grande"] = "medio",
+) -> None:
+    """Barra de progresso horizontal do design system TOTALE."""
+    cor = _resolver_cor_tema(tema)
+    try:
+        limite = float(maximo)
+        pct = float(valor) / limite * 100.0 if limite > 0 else 0.0
+    except (TypeError, ValueError):
+        pct = 0.0
+    pct = max(0.0, min(100.0, pct))
+
+    altura_px = {"pequeno": 6, "medio": 10, "grande": 14}.get(altura, 10)
+    label_html = (
+        f'<div style="font-family:{FONTE_TEXTO};font-size:11px;color:{COR_TEXTO_3};'
+        f'font-weight:600;margin-bottom:6px;">{html.escape(str(label))}</div>'
+        if label
+        else ""
+    )
+    valor_html = (
+        f'<span style="font-family:{FONTE_TITULO};font-size:12px;color:{cor};'
+        f'font-weight:800;font-variant-numeric:tabular-nums;min-width:44px;'
+        f'text-align:right;">{pct:.1f}%</span>'
+        if mostrar_valor
+        else ""
+    )
+    st.markdown(
+        f"""
+        <div style="margin:8px 0 14px 0;">
+            {label_html}
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="flex:1;background:#E2E8F0;border-radius:999px;height:{altura_px}px;overflow:hidden;">
+                    <div style="width:{pct:.2f}%;height:100%;background:{cor};border-radius:999px;transition:width 0.4s ease;"></div>
+                </div>
+                {valor_html}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+_EMPTY_STATE_CONFIG: dict[str, tuple[str, str, str, str]] = {
+    "dados": ("📭", "#F1F5F9", "#3E5566", "#CBD5E1"),
+    "info": ("ℹ️", "#E8F0F5", "#214B68", "#4D7B99"),
+    "erro": ("🚨", "#FDECEA", "#8E2119", "#B42318"),
+    "alerta": ("⚠️", "#FFF3E4", "#8A4B16", "#C66A16"),
+    "sucesso": ("✅", "#E8F4EF", "#145C49", "#16745B"),
+}
+
+
+def render_empty_state(
+    tipo: Literal["dados", "info", "erro", "alerta", "sucesso"] = "dados",
+    titulo: str = "",
+    descricao: str = "",
+    icone: str = "",
+) -> None:
+    """Estado vazio/erro padronizado, usado quando um recorte não tem linhas."""
+    icone_padrao, fundo, texto, borda = _EMPTY_STATE_CONFIG.get(
+        tipo, _EMPTY_STATE_CONFIG["dados"]
+    )
+    titulo_final = titulo or {
+        "dados": "Sem dados para exibir",
+        "info": "Informação",
+        "erro": "Não foi possível concluir",
+        "alerta": "Atenção",
+        "sucesso": "Tudo certo",
+    }.get(tipo, "")
+    descricao_html = (
+        f'<p style="margin:6px 0 0 0;font-family:{FONTE_TEXTO};font-size:13px;'
+        f'color:{COR_TEXTO_2};line-height:1.55;">{_markdown_inline_para_html(descricao)}</p>'
+        if descricao
+        else ""
+    )
+    st.markdown(
+        f"""
+        <div style="background:{fundo};border:1px solid {borda};border-left:4px solid {borda};
+                    border-radius:var(--radius-md);padding:20px 22px;margin:14px 0;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+                <span style="font-size:24px;line-height:1;">{icone or icone_padrao}</span>
+                <div>
+                    <div style="font-family:{FONTE_TITULO};font-size:15px;font-weight:800;
+                                color:{texto};">{html.escape(str(titulo_final))}</div>
+                    {descricao_html}
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+_STATUS_BADGE: dict[str, tuple[str, str, str]] = {
+    "CONCLUIDO": ("Concluído", "#E8F4EF", "#145C49"),
+    "PENDENTE": ("Pendente", "#FFF3E4", "#8A4B16"),
+    "CANCELADO": ("Cancelado", "#FDECEA", "#8E2119"),
+}
+
+_CORES_REGRA_TABELA: dict[str, str] = {
+    "sucesso": COR_SUCESSO,
+    "alerta": COR_ALERTA,
+    "neutro": COR_NEUTRO,
+}
+
+
+def _formatar_valor_tabela(valor: Any, spec: str | None) -> str:
+    try:
+        if valor is None or (not isinstance(valor, (list, dict)) and pd.isna(valor)):
+            return "—"
+    except (TypeError, ValueError):
+        pass
+    if not spec:
+        if isinstance(valor, float):
+            return f"{valor:,.1f}"
+        return str(valor)
+    try:
+        texto = spec.format(valor)
+    except (ValueError, IndexError, KeyError, TypeError):
+        try:
+            texto = format(valor, spec)
+        except (ValueError, TypeError):
+            return str(valor)
+    # Separador de milhar pt-BR para specs puramente inteiros (ex.: "{:,}").
+    if "," in spec and "." not in spec:
+        texto = texto.replace(",", ".")
+    return texto
+
+
+def render_table_html(
+    df: pd.DataFrame,
+    colunas: list[str] | None = None,
+    alinhamentos: dict[str, str] | None = None,
+    fmt: dict[str, str] | None = None,
+    color_rules: dict[str, dict[str, str]] | None = None,
+    titulo: str = "",
+    height: int | None = None,
+    mostrar_data: bool = True,  # compatibilidade de API; a tabela é sempre HTML
+    **_: Any,
+) -> None:
+    """Tabela HTML estilizada com alinhamento, formatação e cores semânticas.
+
+    ``color_rules`` mapeia coluna → {valor: "sucesso"|"alerta"|"neutro"}.
+    A chave pode ser o valor bruto (``"95.0"``) ou já formatado (``"95.0%"``),
+    o que mantém compatibilidade com as regras geradas antes da formatação.
+    """
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        st.info("Nenhuma linha para exibir neste recorte.")
+        return
+
+    colunas_validas = [
+        c for c in (colunas or list(df.columns)) if c in df.columns
+    ] or list(df.columns)
+    alinhamentos = alinhamentos or {}
+    fmt = {c: s for c, s in (fmt or {}).items() if c in df.columns}
+    color_rules = color_rules or {}
+
+    if titulo:
+        st.markdown(
+            f'<div style="font-family:{FONTE_TITULO};font-size:15px;font-weight:800;'
+            f'color:{COR_TEXTO};margin:22px 0 10px 0;">{html.escape(str(titulo))}</div>',
+            unsafe_allow_html=True,
+        )
+
+    estilo_th = (
+        f"font-family:{FONTE_TEXTO};font-size:10px;font-weight:800;"
+        f"color:{COR_TEXTO_3};text-transform:uppercase;letter-spacing:0.05em;"
+        "padding:10px 12px;background:#F8FAFC;border-bottom:2px solid #D9E2E8;"
+        "white-space:nowrap;position:sticky;top:0;z-index:1;"
+    )
+
+    cabecalho = "".join(
+        f'<th style="{estilo_th}text-align:{alinhamentos.get(c, "left")};">'
+        f"{html.escape(str(c))}</th>"
+        for c in colunas_validas
+    )
+
+    linhas: list[str] = []
+    for _, row in df.iterrows():
+        celulas: list[str] = []
+        for col in colunas_validas:
+            valor = row[col]
+            espec = fmt.get(col)
+            texto = _formatar_valor_tabela(valor, espec)
+
+            if col == "Status" and str(valor) in _STATUS_BADGE:
+                rotulo, fundo, cor = _STATUS_BADGE[str(valor)]
+                conteudo = (
+                    f'<span style="background:{fundo};color:{cor};border:1px solid {cor};'
+                    f'padding:2px 8px;border-radius:999px;font-size:10px;'
+                    f'font-weight:800;text-transform:uppercase;letter-spacing:0.04em;'
+                    f'white-space:nowrap;">{html.escape(rotulo)}</span>'
+                )
+            else:
+                regras = color_rules.get(col) or {}
+                regra = regras.get(str(valor)) or regras.get(texto)
+                cor = _CORES_REGRA_TABELA.get(str(regra)) if regra else None
+                texto_seguro = html.escape(texto)
+                conteudo = (
+                    f'<span style="color:{cor};font-weight:700;">{texto_seguro}</span>'
+                    if cor
+                    else texto_seguro
+                )
+
+            celulas.append(
+                f'<td style="font-family:{FONTE_TEXTO};font-size:13px;color:{COR_TEXTO};'
+                f'padding:9px 12px;border-bottom:1px solid #E2E8F0;'
+                f'text-align:{alinhamentos.get(col, "left")};'
+                f'font-variant-numeric:tabular-nums;white-space:nowrap;">{conteudo}</td>'
+            )
+        linhas.append("<tr>" + "".join(celulas) + "</tr>")
+
+    altura_css = f"max-height:{int(height)}px;" if height else ""
+    st.markdown(
+        f"""
+        <div style="background:#FFFFFF;border:1px solid #D9E2E8;border-radius:8px;
+                    overflow:auto;{altura_css}margin-bottom:14px;
+                    box-shadow:0 1px 2px rgba(18,48,74,0.06);">
+            <table style="width:100%;border-collapse:collapse;background:#FFFFFF;">
+                <thead><tr>{cabecalho}</tr></thead>
+                <tbody>{''.join(linhas)}</tbody>
+            </table>
         </div>
         """,
         unsafe_allow_html=True,
