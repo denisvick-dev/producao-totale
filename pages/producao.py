@@ -702,10 +702,85 @@ META_PRINCIPAL = 400
 
 class ProcessamentoDados:
     @staticmethod
+    def calcular_cenarios_metas(
+        serie_diaria: pd.Series,
+        pontos_atuais: float,
+        dias_restantes: int,
+    ) -> dict[str, float]:
+        """Taxas diárias (pts/dia) dos três cenários do fechamento.
+
+        * **provável**: média dos dias com O.S. (mesmo critério do card de
+          projeção do topo);
+        * **conservador**: mediana dos últimos 14 dias corridos, incluindo
+          dias sem produção como zero;
+        * **otimista**: melhor janela de 7 dias corridos das últimas 4 semanas.
+        """
+        if serie_diaria is None or serie_diaria.empty:
+            return {"provavel": 0.0, "conservador": 0.0, "otimista": 0.0}
+
+        serie = pd.Series(serie_diaria, dtype=float).dropna()
+        serie.index = pd.to_datetime(serie.index)
+        serie = serie.sort_index()
+        if serie.empty:
+            return {"provavel": 0.0, "conservador": 0.0, "otimista": 0.0}
+
+        com_producao = serie[serie > 0]
+        provavel = float(com_producao.mean()) if not com_producao.empty else 0.0
+
+        fim = serie.index.max().normalize()
+        inicio_14 = fim - pd.Timedelta(days=13)
+        janela_14 = serie.loc[
+            (serie.index >= inicio_14) & (serie.index <= fim)
+        ].reindex(pd.date_range(inicio_14, fim, freq="D"), fill_value=0.0)
+        conservador = float(janela_14.median()) if not janela_14.empty else 0.0
+
+        inicio_28 = fim - pd.Timedelta(days=27)
+        janela_28 = serie.loc[
+            (serie.index >= inicio_28) & (serie.index <= fim)
+        ].reindex(pd.date_range(inicio_28, fim, freq="D"), fill_value=0.0)
+        if len(janela_28) >= 7:
+            melhor_semana = float(janela_28.rolling(7).sum().max())
+        else:
+            melhor_semana = float(janela_28.sum())
+        otimista = melhor_semana / 7.0
+
+        return {
+            "provavel": provavel,
+            "conservador": conservador,
+            "otimista": otimista,
+        }
+
+    @staticmethod
+    def projetar_por_cenario(
+        pontos_atuais: float, taxa_diaria: float, dias_restantes: int
+    ) -> float:
+        return float(pontos_atuais) + float(taxa_diaria) * max(0, int(dias_restantes))
+
+    @staticmethod
+    def classificar_chance(
+        pontos_atuais: float,
+        meta: float,
+        projecao: float,
+        necessario: float,
+        taxa_provavel: float,
+    ) -> str:
+        """Probabilidade simplificada: Alta / Média / Baixa."""
+        if pontos_atuais >= meta:
+            return "Alta"
+        if projecao >= meta:
+            return "Alta" if necessario <= taxa_provavel * 1.05 else "Média"
+        if projecao >= meta * 0.90:
+            return "Média"
+        return "Baixa"
+
+    @staticmethod
     def calcular_painel_metas(
-        pontos_atuais: float, dias_restantes: int
+        pontos_atuais: float,
+        dias_restantes: int,
+        cenarios: dict[str, float] | None = None,
     ) -> pd.DataFrame:
         seguros = max(1, dias_restantes)
+        taxas = cenarios or {"provavel": 0.0, "conservador": 0.0, "otimista": 0.0}
         linhas: list[dict[str, Any]] = []
         for meta in METAS_MENSAIS:
             falta = max(0.0, float(meta) - pontos_atuais)
@@ -720,6 +795,17 @@ class ProcessamentoDados:
             else:
                 situacao = "🔴 Exige ritmo alto"
 
+            projecao = ProcessamentoDados.projetar_por_cenario(
+                pontos_atuais, taxas.get("provavel", 0.0), dias_restantes
+            )
+            chance = ProcessamentoDados.classificar_chance(
+                pontos_atuais,
+                float(meta),
+                projecao,
+                necessario,
+                taxas.get("provavel", 0.0),
+            )
+
             linhas.append(
                 {
                     "Meta": meta,
@@ -727,6 +813,8 @@ class ProcessamentoDados:
                     "Progresso": round(pct, 1),
                     "Faltam": round(falta, 1),
                     "Pontos/Dia Necessário": round(necessario, 2),
+                    "Projeção": round(projecao, 2),
+                    "Chance": chance,
                     "Vs Meta": txt_var,
                     "Situação": situacao,
                 }
@@ -1243,7 +1331,17 @@ classe_var_mes, txt_var_mes = Utilitarios.calcular_variacao(
 )
 icone_var_mes = {"positiva": "⬆️", "negativa": "⬇️"}.get(classe_var_mes, "➖")
 
-df_metas = ProcessamentoDados.calcular_painel_metas(t_pontos, dias_brutos)
+serie_diaria_metas = (
+    df_tec_prod.groupby(col_data)[col_pontos].sum().sort_index()
+    if col_data and col_pontos and col_data in df_tec_prod.columns
+    else pd.Series(dtype=float)
+)
+cenarios_metas = ProcessamentoDados.calcular_cenarios_metas(
+    serie_diaria_metas, t_pontos, dias_brutos
+)
+df_metas = ProcessamentoDados.calcular_painel_metas(
+    t_pontos, dias_brutos, cenarios=cenarios_metas
+)
 meta_dia_principal = (
     float(
         df_metas.loc[df_metas["Meta"] == META_PRINCIPAL, "Pontos/Dia Necessário"].iloc[
@@ -1456,6 +1554,38 @@ st.write("---")
 # 14. PAINEL DE METAS
 # ====================================================
 render_section_header("🏆", "Painel de Metas Mensais")
+st.caption(
+    f"🗓️ {dias_brutos} dias úteis restantes (referência: "
+    f"{pd.Timestamp(data_ref).strftime('%d/%m/%Y')}) · "
+    "projeções consideram o ritmo atual até o fim do mês."
+)
+
+# ── Cenários de fechamento ──
+colunas_cenario = st.columns(3)
+cenario_tipos = (
+    ("🟦 Conservador", "conservador", "cinza",
+     "Mediana dos últimos 14 dias (dias sem O.S. = zero)"),
+    ("🟩 Provável", "provavel", "verde",
+     "Média dos dias com O.S., mesmo critério do card do topo"),
+    ("🟧 Otimista", "otimista", "laranja",
+     "Melhor janela de 7 dias das últimas 4 semanas"),
+)
+for coluna, (rotulo, chave, tema, tooltip) in zip(colunas_cenario, cenario_tipos):
+    with coluna:
+        projecao_cenario = ProcessamentoDados.projetar_por_cenario(
+            t_pontos, cenarios_metas.get(chave, 0.0), dias_brutos
+        )
+        st.markdown(
+            _criar_card_tooltip(
+                rotulo,
+                Utilitarios.formatar_numero(projecao_cenario, 2),
+                tema,
+                f"{Utilitarios.formatar_numero(cenarios_metas.get(chave, 0.0), 2)} pts/dia",
+                "🔮",
+                tooltip,
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 def _aplicar_styler(df: pd.DataFrame, func: Any, coluna: str) -> Any:
@@ -1468,10 +1598,27 @@ def _aplicar_styler(df: pd.DataFrame, func: Any, coluna: str) -> Any:
     return df.style
 
 
+def _cor_chance(valor: Any) -> str:
+    estilos = {
+        "Alta": ("#DCFCE7", "#166534"),
+        "Média": ("#FEF9C3", "#854D0E"),
+        "Baixa": ("#FEE2E2", "#991B1B"),
+    }
+    fundo, texto = estilos.get(str(valor), ("#F1F5F9", "#475569"))
+    return (
+        f"background-color:{fundo};color:{texto};font-weight:800;"
+        "text-align:center;border-radius:4px;"
+    )
+
+
 if not df_metas.empty and col_pontos:
     styler_metas = _aplicar_styler(
         df_metas, Utilitarios.colorir_metas, "Pontos/Dia Necessário"
     )
+    try:
+        styler_metas = styler_metas.map(_cor_chance, subset=["Chance"])
+    except Exception:
+        pass
 
     st.dataframe(
         styler_metas,
@@ -1491,13 +1638,98 @@ if not df_metas.empty and col_pontos:
                 format="%.2f",
                 help="Faltam ÷ dias úteis restantes (sem domingos e feriados)",
             ),
+            "Projeção": st.column_config.NumberColumn(
+                "🔮 Projeção Provável", format="%.2f",
+                help="Pontos atuais + média dos dias com O.S. × dias úteis restantes",
+            ),
+            "Chance": st.column_config.TextColumn(
+                "🎲 Chance", help="Alta / Média / Baixa conforme o cenário provável",
+            ),
             "Vs Meta": st.column_config.TextColumn("📈 Vs Meta"),
             "Situação": st.column_config.TextColumn("Status"),
         },
     )
     st.caption(
-        "🎨 **Régua de cores** (Pontos/Dia Necessário): 🟦 ≥ 400 · 🟩 ≥ 300 · 🟨 ≥ 275 · 🟥 < 275"
+        "🎨 **Régua de cores** (Pontos/Dia Necessário): 🟦 ≥ 400 · 🟩 ≥ 300 · "
+        "🟨 ≥ 275 · 🟥 < 275 · **Chance** é uma leitura simplificada do cenário "
+        "provável, não uma probabilidade estatística."
     )
+
+    # ── Drill-down: O.S. que compõem os pontos ──
+    st.markdown("##### 🔍 Detalhar as O.S. de uma meta")
+    botoes = st.columns(len(df_metas))
+    for coluna_botao, (_, linha_meta) in zip(botoes, df_metas.iterrows()):
+        with coluna_botao:
+            meta_atual = int(linha_meta["Meta"])
+            if st.button(
+                f"Meta {meta_atual}",
+                key=f"drill_meta_{meta_atual}",
+                width="stretch",
+            ):
+                st.session_state["meta_detalhe"] = meta_atual
+
+    meta_selecionada = st.session_state.get("meta_detalhe")
+    if meta_selecionada is not None:
+        col_os_detalhe = Utilitarios.buscar_coluna(
+            df_tec_prod,
+            ["OS", "O.S.", "ORDEM", "CONTRATO", "NUM_OS", "ID_OS", "Nº OS"],
+        )
+        col_tec_detalhe = Utilitarios.buscar_coluna(
+            df_tec_prod, ["TECNICO", "TÉCNICO", "NOME", "NOME EQUIPE"]
+        )
+        tamanho = len(df_tec_prod)
+        df_detalhe = pd.DataFrame(
+            {
+                "Data": (
+                    pd.to_datetime(df_tec_prod[col_data]).dt.strftime("%d/%m/%Y").to_numpy()
+                    if col_data and col_data in df_tec_prod.columns
+                    else ["—"] * tamanho
+                ),
+                "O.S.": (
+                    df_tec_prod[col_os_detalhe].astype(str).to_numpy()
+                    if col_os_detalhe
+                    else [f"Registro {i + 1}" for i in range(tamanho)]
+                ),
+                "Origem": (
+                    df_tec_prod[col_origem].astype(str).to_numpy()
+                    if col_origem
+                    else ["—"] * tamanho
+                ),
+                "Pontos": df_tec_prod[col_pontos].to_numpy(),
+                "Técnico": (
+                    df_tec_prod[col_tec_detalhe].astype(str).to_numpy()
+                    if col_tec_detalhe
+                    else [nome_exibicao] * tamanho
+                ),
+            }
+        ).sort_values("Pontos", ascending=False, ignore_index=True)
+
+        with st.container(border=True):
+            cab, fechar = st.columns([5, 1])
+            with cab:
+                st.markdown(
+                    f"**O.S. consideradas no acumulado da meta {meta_selecionada}** "
+                    f"— {tamanho} registro(s), {Utilitarios.formatar_numero(t_pontos, 2)} pts"
+                )
+            with fechar:
+                if st.button("✖ Fechar", key="fechar_detalhe_meta"):
+                    st.session_state["meta_detalhe"] = None
+                    st.rerun()
+            st.dataframe(
+                df_detalhe,
+                width="stretch",
+                hide_index=True,
+                height=320,
+                column_config={
+                    "Pontos": st.column_config.NumberColumn("Pontos", format="%.2f"),
+                },
+            )
+            st.download_button(
+                "⬇️ Baixar detalhe (CSV)",
+                data=df_detalhe.to_csv(index=False).encode("utf-8-sig"),
+                file_name=f"os_meta_{meta_selecionada}.csv",
+                mime="text/csv",
+            )
 else:
     st.info("💡 Coluna de pontos não identificada — Painel de Metas indisponível.")
 
