@@ -2,11 +2,9 @@
 import textwrap
 import time
 
-import pandas as pd
 import streamlit as st
 
 from utils._auth import AuthManager
-from utils._database import get_db
 
 # ====================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -18,9 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-PAGINA_PRODUCAO = "pages/producao.py"
-PAGINA_CONSULTIVO = "pages/consultivo.py"
-PAGINA_ADMIN = "pages/admin.py"
+PAGINA_INICIO = "pages/home.py"
 
 # ====================================================
 # ESTADO DA SESSÃO (ROTEAMENTO)
@@ -32,27 +28,9 @@ if "auth_view" not in st.session_state:
     st.session_state["auth_view"] = "login"  # 'login' ou 'trocar_senha'
 
 if st.session_state["authenticated"]:
-    pagina_inicial = (
-        PAGINA_ADMIN if st.session_state.get("is_admin", False) else PAGINA_PRODUCAO
-    )
-    st.switch_page(pagina_inicial)
+    st.switch_page(PAGINA_INICIO)
 
 auth = AuthManager()
-
-
-# ====================================================
-# ⚡ CACHE DOS USUÁRIOS (EVITA ERRO DE QUOTA 429)
-# ====================================================
-@st.cache_data(ttl=300, show_spinner=False)
-def carregar_usuarios_cached() -> pd.DataFrame:
-    """Carrega os usuários com cache de 5 minutos (300s) para não estourar a cota da API do Google Sheets."""
-    try:
-        db = get_db()
-        df = db.get_users_dataframe()
-        return df if df is not None else pd.DataFrame()
-    except Exception as e:
-        st.error(f"Erro na base de usuários: {e}")
-        return pd.DataFrame()
 
 
 # ====================================================
@@ -160,62 +138,11 @@ def render_sidebar_login() -> None:
 
 
 # ====================================================
-# COMPONENTE: TABELA DE PESQUISA (USA CACHE AGORA)
-# ====================================================
-def render_tabela_consulta():
-    st.markdown(
-        textwrap.dedent(
-            """
-        <div class="tabela-info">
-            <h4 style="color:#012869;margin:0 0 4px 0;font-size:16px;font-weight:700;">📋 Base de Colaboradores Ativos</h4>
-            <p style="color:#64748B;margin:0;font-size:13px;font-weight:500;">Consulte seu código de acesso na lista abaixo (Apenas para conferência).</p>
-        </div>
-        """
-        ).strip(),
-        unsafe_allow_html=True,
-    )
-
-    # ⚡ USANDO A FUNÇÃO COM CACHE
-    df_users = carregar_usuarios_cached()
-
-    if not df_users.empty:
-        search = st.text_input(
-            "🔍 Localize seu cadastro:",
-            placeholder="Digite seu nome ou login Z...",
-            key="search_table",
-        )
-        df_display = df_users.copy()
-
-        if search:
-            df_display = df_display[
-                df_display["Técnico"]
-                .astype(str)
-                .str.contains(search, case=False, na=False)
-                | df_display["Login"]
-                .astype(str)
-                .str.contains(search, case=False, na=False)
-                | df_display["User"]
-                .astype(str)
-                .str.contains(search, case=False, na=False)
-            ]
-
-        colunas_para_remover = [
-            col for col in ["Pass"] if col in df_display.columns
-        ]
-        if colunas_para_remover:
-            df_display = df_display.drop(columns=colunas_para_remover)
-
-        st.dataframe(df_display, width="stretch", hide_index=True, height=290)
-    else:
-        st.warning("Aguarde um momento ou tente recarregar a página.")
-
-
-# ====================================================
 # TELA 1: LOGIN
 # ====================================================
 def tela_login() -> None:
-    _col_vazia_esq, col_form, col_tabela, _col_vazia_dir = st.columns(
-        [0.1, 2.5, 3.5, 0.1], gap="large"
+    _col_vazia_esq, col_form, _col_vazia_dir = st.columns(
+        [1, 2.2, 1], gap="large"
     )
 
     with col_form:
@@ -237,30 +164,27 @@ def tela_login() -> None:
                     with st.spinner("Autenticando..."):
                         success, message = auth.login(identifier, password)
                     if success:
-                        pagina_inicial = (
-                            PAGINA_ADMIN
-                            if st.session_state.get("is_admin", False)
-                            else PAGINA_PRODUCAO
-                        )
-                        st.switch_page(pagina_inicial)
+                        st.switch_page(PAGINA_INICIO)
                     else:
                         st.error(f"❌ {message}")
 
+        st.caption(
+            "🔒 A consulta de logins é restrita a administradores "
+            "(painel Admin → 🔐 Logins). Em caso de dúvida, fale com seu supervisor."
+        )
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Deseja alterar sua senha?", width="stretch"):
             st.session_state["auth_view"] = "trocar_senha"
             st.rerun()
 
-    with col_tabela:
-        render_tabela_consulta()
 
 
 # ====================================================
 # TELA 2: TROCAR SENHA
 # ====================================================
 def tela_trocar_senha() -> None:
-    _col_vazia_esq, col_form, col_tabela, _col_vazia_dir = st.columns(
-        [0.1, 2.5, 3.5, 0.1], gap="large"
+    _col_vazia_esq, col_form, _col_vazia_dir = st.columns(
+        [1, 2.2, 1], gap="large"
     )
 
     with col_form:
@@ -299,7 +223,9 @@ def tela_trocar_senha() -> None:
                     st.error("⚠️ A nova senha deve ter pelo menos 6 caracteres!")
                 else:
                     with st.spinner("Validando dados..."):
-                        is_valid_user, _auth_message = auth.login(identifier, old_pass)
+                        is_valid_user, _auth_message = auth.validar_senha(
+                            identifier, old_pass
+                        )
 
                     if not is_valid_user:
                         st.error("❌ A senha atual informada está incorreta.")
@@ -307,8 +233,6 @@ def tela_trocar_senha() -> None:
                         success, message = auth.update_password(identifier, new_pass)
 
                         if success:
-                            # ⚡ Limpa o cache ao atualizar a senha
-                            carregar_usuarios_cached.clear()
                             st.success(
                                 "✅ Senha alterada com sucesso! Redirecionando..."
                             )
@@ -326,8 +250,6 @@ def tela_trocar_senha() -> None:
             st.session_state["auth_view"] = "login"
             st.rerun()
 
-    with col_tabela:
-        render_tabela_consulta()
 
 
 # ====================================================

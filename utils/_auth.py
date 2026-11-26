@@ -8,6 +8,7 @@ Processa validação de login, hash Bcrypt e alteração de senhas.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import bcrypt
 import streamlit as st
@@ -20,9 +21,20 @@ logger = logging.getLogger(__name__)
 class AuthManager:
     """Gerenciador central de autenticação e sessão dos colaboradores."""
 
+    def validar_senha(self, identifier: str, password: str) -> tuple[bool, str]:
+        """Confere login/senha **sem abrir sessão**.
+
+        Use esta função em fluxos que apenas precisam confirmar a identidade
+        (por exemplo, validar a senha atual antes de alterá-la). O ``login()``
+        continua sendo a única porta de entrada autenticada no portal.
+        """
+        valido, mensagem, _ = self._validar_credenciais(identifier, password)
+        return valido, mensagem
+
     def login(self, identifier: str, password: str) -> tuple[bool, str]:
         """
         Autentica o colaborador comparando a senha informada com o Hash Bcrypt.
+        Em caso de sucesso, abre a sessão do portal.
 
         Parâmetros:
             identifier: Login (ex: Z569935) ou User (ex: DENIS.ADMIN)
@@ -31,15 +43,26 @@ class AuthManager:
         Retorna:
             tuple[bool, str]: (Sucesso booleano, Mensagem para interface)
         """
+        valido, mensagem, linha = self._validar_credenciais(identifier, password)
+        if not valido or linha is None:
+            return False, mensagem
+
+        self._abrir_sessao(linha)
+        return True, "Login efetuado com sucesso!"
+
+    def _validar_credenciais(
+        self, identifier: str, password: str
+    ) -> tuple[bool, str, Any]:
+        """Núcleo de validação: não altera ``st.session_state``."""
         if not identifier or not password:
-            return False, "Preencha o usuário e a senha para acessar."
+            return False, "Preencha o usuário e a senha para acessar.", None
 
         try:
             db = get_db()
             df_users = db.get_users_dataframe()
 
             if df_users is None or df_users.empty:
-                return False, "Não foi possível carregar a base de colaboradores."
+                return False, "Não foi possível carregar a base de colaboradores.", None
 
             # Normalização de busca (insensível a maiúsculas/minúsculas e espaços)
             identifier_clean = str(identifier).strip().upper()
@@ -53,14 +76,14 @@ class AuthManager:
             matched_user = df_users[user_mask]
 
             if matched_user.empty:
-                return False, "Usuário ou senha incorretos."
+                return False, "Usuário ou senha incorretos.", None
 
             # Extrai dados do usuário encontrado
             row = matched_user.iloc[0]
             hash_salvo = str(row.get("Pass", "")).strip()
 
             if not hash_salvo or hash_salvo.lower() in ("nan", "none", "null", ""):
-                return False, "Usuário sem senha cadastrada no sistema."
+                return False, "Usuário sem senha cadastrada no sistema.", None
 
             # Preparação dos bytes para validação Bcrypt
             password_bytes = password.strip().encode("utf-8")
@@ -74,61 +97,64 @@ class AuthManager:
                     is_valid = bcrypt.checkpw(password_bytes, hash_bytes)
                 except Exception as exc:
                     logger.error("Falha ao checar Bcrypt: %s", exc)
-                    return False, "Formato de senha inválido na base."
+                    return False, "Formato de senha inválido na base.", None
             else:
                 # Fallback de segurança para senhas antigas sem hash (texto puro)
                 is_valid = (password.strip() == hash_salvo)
 
             if is_valid:
-                # Captura nome do técnico independente da variação do nome da coluna
-                nome_tecnico = str(
-                    row.get("Técnico", row.get("TECNICO", row.get("Nome", "")))
-                ).strip()
-                login_codigo = str(row.get("Login", "")).strip()
-                user_nome = str(row.get("User", "")).strip()
+                return True, "Login efetuado com sucesso!", row
 
-                perfil_usuario = ""
-                for coluna, valor in row.items():
-                    if str(coluna).strip().lower() in {"perfil", "role", "cargo"}:
-                        perfil_usuario = str(valor).strip()
-                        break
-
-                perfil_normalizado = perfil_usuario.upper()
-                is_admin = (
-                    perfil_normalizado in {
-                        "ADMIN",
-                        "ADM",
-                        "ADMINISTRADOR",
-                        "GESTOR",
-                        "MANAGER",
-                        "SUPERVISOR",
-                        "COORDENADOR",
-                    }
-                    or "ADMIN" in user_nome.upper()
-                    or login_codigo.upper().startswith("ADM")
-                )
-
-                st.session_state["authenticated"] = True
-                st.session_state["is_admin"] = is_admin
-                st.session_state["user_info"] = {
-                    "tecnico": nome_tecnico,   # coluna Técnico
-                    "login": login_codigo,     # coluna Login (Z...)
-                    "user": user_nome,         # coluna User (NOME.SOBRENOME)
-                    "perfil": perfil_usuario,
-                }
-                # espelho legado (opcional, ajuda páginas antigas)
-                st.session_state["tecnico"] = nome_tecnico
-                st.session_state["login_code"] = login_codigo
-                st.session_state["user_code"] = user_nome
-
-                logger.info("Usuário %s (%s) logado com sucesso.", user_nome, login_codigo)
-                return True, "Login efetuado com sucesso!"
-
-            return False, "Usuário ou senha incorretos."
+            return False, "Usuário ou senha incorretos.", None
 
         except Exception as err:
-            logger.exception("Erro crítico no método login.")
-            return False, f"Erro interno de autenticação: {err!s}"
+            logger.exception("Erro crítico na validação de credenciais.")
+            return False, f"Erro interno de autenticação: {err!s}", None
+
+    @staticmethod
+    def _abrir_sessao(row: Any) -> None:
+        """Grava na sessão os dados do usuário já validado."""
+        nome_tecnico = str(
+            row.get("Técnico", row.get("TECNICO", row.get("Nome", "")))
+        ).strip()
+        login_codigo = str(row.get("Login", "")).strip()
+        user_nome = str(row.get("User", "")).strip()
+
+        perfil_usuario = ""
+        for coluna, valor in row.items():
+            if str(coluna).strip().lower() in {"perfil", "role", "cargo"}:
+                perfil_usuario = str(valor).strip()
+                break
+
+        perfil_normalizado = perfil_usuario.upper()
+        is_admin = (
+            perfil_normalizado in {
+                "ADMIN",
+                "ADM",
+                "ADMINISTRADOR",
+                "GESTOR",
+                "MANAGER",
+                "SUPERVISOR",
+                "COORDENADOR",
+            }
+            or "ADMIN" in user_nome.upper()
+            or login_codigo.upper().startswith("ADM")
+        )
+
+        st.session_state["authenticated"] = True
+        st.session_state["is_admin"] = is_admin
+        st.session_state["user_info"] = {
+            "tecnico": nome_tecnico,   # coluna Técnico
+            "login": login_codigo,     # coluna Login (Z...)
+            "user": user_nome,         # coluna User (NOME.SOBRENOME)
+            "perfil": perfil_usuario,
+        }
+        # espelho legado (opcional, ajuda páginas antigas)
+        st.session_state["tecnico"] = nome_tecnico
+        st.session_state["login_code"] = login_codigo
+        st.session_state["user_code"] = user_nome
+
+        logger.info("Usuário %s (%s) logado com sucesso.", user_nome, login_codigo)
 
     def update_password(self, identifier: str, nova_senha: str) -> tuple[bool, str]:
         """

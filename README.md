@@ -6,9 +6,10 @@ metas e indicadores operacionais.
 ## Estrutura
 
 - `streamlit_app.py`: autenticação e entrada do portal.
-- `pages/`: visões de Produção, Consultivo, Indicadores e Admin.
+- `pages/home.py`: Visão Geral unificada (página inicial após o login).
+- `pages/`: visões de Início, Produção, Consultivo, Indicadores e Admin.
 - `components/`: design system e componentes visuais reutilizáveis.
-- `utils/`: autenticação, banco e configurações compartilhadas.
+- `utils/`: autenticação, banco, prévias da Visão Geral e configurações.
 - `data/`: arquivos locais de apoio.
 
 ## Execução local
@@ -68,5 +69,27 @@ código-fonte é interpretada como bloco de código e a página mostra as tags
 
 Todas as páginas autenticadas usam o mesmo card de perfil/logout
 (`render_sidebar_portal`) e o mesmo menu lateral (`injetar_css_menu_nomes`),
-com os itens Produtividade, Consultivo, Indicadores e Admin. O item Admin só
-aparece para perfis administrativos.
+com os itens Início, Produtividade, Consultivo, Indicadores e Admin. O item
+Admin só aparece para perfis administrativos.
+
+## Visão Geral
+
+Após o login, o portal abre `pages/home.py`. A página reúne prévia de pontos,
+O.S., consultivos/vendas e indicadores na meta, além de atalhos para as páginas
+de detalhe. Os números vêm de `utils/_home_data.py`, com cache; se alguma fonte
+estiver indisponível, a página mostra um aviso em vez de falhar. O cálculo
+oficial continua nas páginas específicas.
+
+## Painel de Metas
+
+`pages/producao.py` mostra três cenários de fechamento (conservador, provável e
+otimista), os pontos/dia necessários, uma classificação simplificada de chance
+(alta/média/baixa) e os dias úteis restantes. Os botões abaixo da tabela abrem
+as O.S. que compõem o acumulado de cada meta, com opção de exportar em CSV.
+
+## Autenticação
+
+`AuthManager.validar_senha()` confirma login e senha **sem abrir sessão** e é
+usada na troca de senha. Somente `AuthManager.login()` autentica o usuário. A
+lista de colaboradores não é mais exibida nas telas públicas; a consulta de
+logins fica restrita à aba `🔐 Logins` do painel Admin.

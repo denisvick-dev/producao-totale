@@ -1415,6 +1415,7 @@ def render_sidebar_portal(
 # RENOMEAR ITENS DO MENU (helper reutilizável)
 # ====================================================
 PAGINAS_MENU: dict[str, str] = {
+    "home": "🏠 Início",
     "producao": "📊 Produtividade",
     "consultivo": "🗣️ Consultivo",
     "indicadores": "⚡ Indicadores",
