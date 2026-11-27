@@ -18,6 +18,7 @@ import streamlit as st
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from utils._auth import FIRST_LOGIN_PREFIX
 from utils._config import HEADERS_USERS
 from utils._database import get_db
 
@@ -2394,7 +2395,8 @@ with tab_logins:
                 "Técnico": tecnico.strip(),
                 "Login": login_limpo,
                 "User": user_limpo,
-                "Pass": bcrypt.hashpw(
+                # Toda senha definida pelo Admin exige troca no primeiro acesso.
+                "Pass": FIRST_LOGIN_PREFIX + bcrypt.hashpw(
                     senha.strip().encode("utf-8"), bcrypt.gensalt(rounds=12)
                 ).decode("utf-8"),
                 "Perfil": perfil,
@@ -2462,7 +2464,7 @@ with tab_logins:
                 df_users.loc[indice, "User"] = user_editado_limpo
                 df_users.loc[indice, "Perfil"] = perfil_editado
                 if senha_editada:
-                    df_users.loc[indice, "Pass"] = bcrypt.hashpw(
+                    df_users.loc[indice, "Pass"] = FIRST_LOGIN_PREFIX + bcrypt.hashpw(
                         senha_editada.strip().encode("utf-8"),
                         bcrypt.gensalt(rounds=12),
                     ).decode("utf-8")

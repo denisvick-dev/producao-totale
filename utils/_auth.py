@@ -16,6 +16,7 @@ import streamlit as st
 from utils._database import get_db
 
 logger = logging.getLogger(__name__)
+FIRST_LOGIN_PREFIX = "FIRST_LOGIN:"
 
 
 class AuthManager:
@@ -47,8 +48,10 @@ class AuthManager:
         if not valido or linha is None:
             return False, mensagem
 
-        self._abrir_sessao(linha)
-        return True, "Login efetuado com sucesso!"
+        senha_salva = str(linha.get("Pass", "")).strip()
+        primeiro_acesso = senha_salva.startswith(FIRST_LOGIN_PREFIX)
+        self._abrir_sessao(linha, exigir_troca=primeiro_acesso)
+        return True, "É necessário trocar a senha no primeiro acesso." if primeiro_acesso else "Login efetuado com sucesso!"
 
     def _validar_credenciais(
         self, identifier: str, password: str
@@ -85,14 +88,19 @@ class AuthManager:
             if not hash_salvo or hash_salvo.lower() in ("nan", "none", "null", ""):
                 return False, "Usuário sem senha cadastrada no sistema.", None
 
+            hash_validacao = (
+                hash_salvo[len(FIRST_LOGIN_PREFIX):]
+                if hash_salvo.startswith(FIRST_LOGIN_PREFIX)
+                else hash_salvo
+            )
             # Preparação dos bytes para validação Bcrypt
             password_bytes = password.strip().encode("utf-8")
-            hash_bytes = hash_salvo.encode("utf-8")
+            hash_bytes = hash_validacao.encode("utf-8")
 
             is_valid = False
 
             # Validação Bcrypt padrão ($2b$, $2a$, $2y$)
-            if hash_salvo.startswith(("$2a$", "$2b$", "$2y$")):
+            if hash_validacao.startswith(("$2a$", "$2b$", "$2y$")):
                 try:
                     is_valid = bcrypt.checkpw(password_bytes, hash_bytes)
                 except Exception as exc:
@@ -112,7 +120,7 @@ class AuthManager:
             return False, f"Erro interno de autenticação: {err!s}", None
 
     @staticmethod
-    def _abrir_sessao(row: Any) -> None:
+    def _abrir_sessao(row: Any, exigir_troca: bool = False) -> None:
         """Grava na sessão os dados do usuário já validado."""
         nome_tecnico = str(
             row.get("Técnico", row.get("TECNICO", row.get("Nome", "")))
@@ -141,7 +149,11 @@ class AuthManager:
             or login_codigo.upper().startswith("ADM")
         )
 
-        st.session_state["authenticated"] = True
+        # Enquanto a troca obrigatória não for concluída, páginas protegidas
+        # continuam inacessíveis; o usuário permanece apenas na tela de senha.
+        st.session_state["authenticated"] = not exigir_troca
+        st.session_state["force_password_change"] = exigir_troca
+        st.session_state["auth_view"] = "trocar_senha" if exigir_troca else "login"
         st.session_state["is_admin"] = is_admin
         st.session_state["user_info"] = {
             "tecnico": nome_tecnico,   # coluna Técnico
@@ -219,4 +231,5 @@ class AuthManager:
         st.session_state["authenticated"] = False
         st.session_state["user_info"] = {}
         st.session_state["is_admin"] = False
+        st.session_state["force_password_change"] = False
         st.session_state["auth_view"] = "login"

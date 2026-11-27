@@ -38,7 +38,11 @@ As credenciais do Google devem ser fornecidas pelo mecanismo de Secrets do
 Streamlit, usando a chave `gcp_service_account`. Os IDs das planilhas ficam
 centralizados em `utils/_config.py`. Para trocar a competência sem editar
 código, use os Secrets `producao_spreadsheet_id` e
-`producao_mes_anterior_spreadsheet_id`.
+`producao_mes_anterior_spreadsheet_id`. A aba **Últimos 3 meses** da página
+Produtividade usa ainda `producao_dois_meses_atras_spreadsheet_id` para a
+competência de dois meses atrás (por padrão, setembro/2026). Atualize esse
+Secret junto com o arquivo de mês anterior a cada nova competência; o painel
+filtra os dados do técnico logado antes de agregar os resultados.
 
 ## Painel de Indicadores
 
@@ -94,11 +98,17 @@ do mês anterior. A aba de metas mostra três cenários de fechamento
 (conservador, provável e otimista), os pontos/dia necessários, uma
 classificação simplificada de chance (alta/média/baixa) e os dias úteis
 restantes. Os botões abaixo da tabela abrem as O.S. que compõem o acumulado de
-cada meta, com opção de exportar em CSV.
+cada meta, com opção de exportar em CSV. A aba **Últimos 3 meses** compara a
+produção individual das competências atual, anterior e dois meses atrás; os
+IDs históricos são configuráveis por Secrets conforme as competências avançam.
 
 ## Autenticação
 
 `AuthManager.validar_senha()` confirma login e senha **sem abrir sessão** e é
 usada na troca de senha. Somente `AuthManager.login()` autentica o usuário. A
 lista de colaboradores não é mais exibida nas telas públicas; a consulta de
-logins fica restrita à aba `🔐 Logins` do painel Admin.
+logins fica restrita à aba `🔐 Logins` do painel Admin. Logins criados ou com
+senha redefinida pelo Admin são marcados para troca obrigatória no primeiro
+acesso: o usuário só entra no portal após validar a senha inicial e salvar uma
+nova senha. O marcador fica junto ao hash na coluna `Pass` e é removido após a
+troca bem-sucedida.
