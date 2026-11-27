@@ -1310,7 +1310,7 @@ with tab_resumo:
 
     st.divider()
     render_section_header("🧩", "Contexto e Ritmo", badge="Operação")
-    kr6, kr7, kr8, kr9 = st.columns(4)
+    kr6, kr7, kr8 = st.columns(3)
 
     with kr6:
         sub_share = (
@@ -1359,29 +1359,6 @@ with tab_resumo:
             ),
             unsafe_allow_html=True,
         )
-    with kr9:
-        posicao_txt = (
-            Utilitarios.formatar_posicao(posicao_geral)
-            if posicao_geral is not None
-            else "—"
-        )
-        sub_posicao = (
-            f"Entre {total_tecnicos} técnico(s) na operação"
-            if total_tecnicos
-            else "Ranking indisponível nesta base"
-        )
-        st.markdown(
-            _criar_card_tooltip(
-                "Posição no Ranking",
-                posicao_txt,
-                "laranja",
-                sub_posicao,
-                "🏅",
-                "Ranking por pontos da operação no período da base completa",
-            ),
-            unsafe_allow_html=True,
-        )
-
     # ====================================================
     # MINI-DASHBOARD DO MÊS ANTERIOR
     # ====================================================
