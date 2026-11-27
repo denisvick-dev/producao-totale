@@ -6,6 +6,9 @@ import streamlit as st
 USERS_SPREADSHEET_ID: str = "1MolnI0nY4SHWsuqqpa0QTKJ9Phuq1RH5YB2caWKuyVE"
 PRODUCAO_SPREADSHEET_ID: str = "11Dp9WdZYUrT_LBvfo07Mi8muKXZykU7v"
 PRODUCAO_MES_ANTERIOR_SPREADSHEET_ID: str = "1vGWZaUL9AHLKHSr5gD0yoOx4dqYaAyHf"
+# Arquivo histórico de setembro/2026 para completar a janela atual de 3 meses.
+# O Secret producao_dois_meses_atras_spreadsheet_id permite atualizar a competência.
+PRODUCAO_DOIS_MESES_ATRAS_SPREADSHEET_ID: str = "1V5uFByW6gSg4FRCDYAqw9CPY0WFknmok"
 ATIVOS_SPREADSHEET_ID: str = "1LQKDcLshC6XSXLBVWaEYSpxrro6uydyU9pwDLc38pEg"
 CONSULTIVO_SPREADSHEET_ID: str = "1YOWJ0HuGcEP2vJaZwl2kcgrtNgsoMBDs"
 
@@ -46,6 +49,14 @@ def get_producao_mes_anterior_spreadsheet_id() -> str:
     return (
         _segredo("producao_mes_anterior_spreadsheet_id")
         or PRODUCAO_MES_ANTERIOR_SPREADSHEET_ID
+    )
+
+
+def get_producao_dois_meses_atras_spreadsheet_id() -> str:
+    """ID histórico de produção de duas competências atrás (Secret > config)."""
+    return (
+        _segredo("producao_dois_meses_atras_spreadsheet_id")
+        or PRODUCAO_DOIS_MESES_ATRAS_SPREADSHEET_ID
     )
 
 

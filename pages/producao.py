@@ -14,6 +14,7 @@ import requests
 import streamlit as st
 
 from utils._config import (
+    get_producao_dois_meses_atras_spreadsheet_id,
     get_producao_mes_anterior_spreadsheet_id,
     get_producao_spreadsheet_id,
 )
@@ -151,6 +152,12 @@ def carregar_base_producao_mes_anterior() -> pd.DataFrame:
     return carregar_base_producao_fonte(
         get_producao_mes_anterior_spreadsheet_id()
     )
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def carregar_base_producao_dois_meses_atras() -> pd.DataFrame:
+    """Carrega a competência histórica de dois meses atrás (Secret/config)."""
+    return carregar_base_producao_fonte(get_producao_dois_meses_atras_spreadsheet_id())
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -831,6 +838,7 @@ loader.markdown(
 df_prod_raw = carregar_base_producao()
 df_ativos_raw = carregar_base_ativos()
 df_prod_mes_ant_raw = carregar_base_producao_mes_anterior()
+df_prod_dois_meses_raw = carregar_base_producao_dois_meses_atras()
 
 # A base completa é mantida sem o merge para os indicadores globais. O
 # cruzamento com a Lista de Ativos é feito somente depois do recorte do
@@ -921,6 +929,7 @@ def preparar_recorte_tecnico(
 
 df_prod = preparar_recorte_tecnico(df_raw, df_ativos_raw)
 df_prod_mes_ant = preparar_recorte_tecnico(df_raw_mes_ant, df_ativos_raw)
+df_prod_dois_meses = preparar_recorte_tecnico(df_prod_dois_meses_raw, df_ativos_raw)
 
 if df_prod.empty:
     render_insight(
@@ -1239,6 +1248,47 @@ meta_dia_principal = (
     else 0.0
 )
 
+# Prepara janela histórica pessoal de 3 competências sem misturar o cálculo
+# mensal das metas: mês atual + as duas bases históricas configuradas.
+_fontes_3m = [df_prod, df_prod_mes_ant, df_prod_dois_meses]
+_registros_3m: list[pd.DataFrame] = []
+_inicio_3m = (pd.Timestamp.today().to_period("M") - 2).start_time.normalize()
+_fim_3m = pd.Timestamp.today().normalize()
+for _fonte_3m in _fontes_3m:
+    if _fonte_3m.empty:
+        continue
+    _col_data_3m = Utilitarios.buscar_coluna(
+        _fonte_3m, ["DATA", "DATA AGENDAMENTO", "DATA CONCLUSÃO", "DATA_EXECUCAO", "DATE"]
+    )
+    _col_pontos_3m = Utilitarios.buscar_coluna(
+        _fonte_3m, ["PONTOS", "PONTO", "PTS", "PONTUACAO", "PREVIA"]
+    )
+    if not _col_data_3m or not _col_pontos_3m:
+        continue
+    _normalizada_3m = pd.DataFrame({
+        "Data": Utilitarios.converter_data(_fonte_3m[_col_data_3m]),
+        "Pontos": Utilitarios.normalizar_pontos(_fonte_3m[_col_pontos_3m]),
+    }).dropna(subset=["Data"])
+    _normalizada_3m["Data"] = pd.to_datetime(_normalizada_3m["Data"])
+    _normalizada_3m = _normalizada_3m[
+        _normalizada_3m["Data"].between(_inicio_3m, _fim_3m)
+    ].copy()
+    if not _normalizada_3m.empty:
+        _registros_3m.append(_normalizada_3m)
+
+df_historico_3m = (
+    pd.concat(_registros_3m, ignore_index=True)
+    if _registros_3m else pd.DataFrame(columns=["Data", "Pontos"])
+)
+if not df_historico_3m.empty:
+    df_historico_3m["Competência"] = df_historico_3m["Data"].dt.to_period("M").dt.to_timestamp()
+    resumo_3m = df_historico_3m.groupby("Competência", sort=True).agg(
+        **{"Pontos": ("Pontos", "sum"), "O.S.": ("Pontos", "size"), "Dias com produção": ("Data", lambda serie: serie.dt.normalize().nunique())}
+    ).reset_index()
+    resumo_3m["Competência"] = resumo_3m["Competência"].dt.strftime("%m/%Y")
+else:
+    resumo_3m = pd.DataFrame(columns=["Competência", "Pontos", "O.S.", "Dias com produção"])
+
 # ====================================================
 # 13. NAVEGAÇÃO ORGANIZADA POR ASSUNTO
 # ====================================================
@@ -1246,8 +1296,8 @@ st.caption(
     "Resumo, metas e evolução ficam em abas; o filtro de período acima vale "
     "para todos os números desta página."
 )
-tab_resumo, tab_metas, tab_evolucao, tab_historico = st.tabs(
-    ["📊 Resumo", "🎯 Metas e Cenários", "📈 Minha Evolução", "🧾 Histórico das minhas O.S."]
+tab_resumo, tab_metas, tab_evolucao, tab_historico, tab_ultimos_meses = st.tabs(
+    ["📊 Resumo", "🎯 Metas e Cenários", "📈 Minha Evolução", "🧾 Histórico das minhas O.S.", "🗓️ Últimos 3 meses"]
 )
 
 with tab_resumo:
@@ -1735,3 +1785,73 @@ with tab_historico:
         st.warning("Não foram identificadas colunas adequadas para exibir o histórico.")
     if not col_os_hist:
         st.info("A fonte não possui identificador reconhecido de O.S.; a busca textual ainda filtra os campos disponíveis.")
+
+with tab_ultimos_meses:
+    render_section_header("🗓️", "Minha produção · últimos 3 meses")
+    st.caption("Comparativo pessoal por competência. Inclui somente registros identificados para sua conta e dentro dos três meses-calendário mais recentes.")
+    if resumo_3m.empty:
+        st.info("Não foram encontrados registros com data e pontos nas bases dos últimos três meses.")
+    else:
+        c1, c2 = st.columns([1.25, 1])
+        with c1:
+            grafico_mensal_3m = go.Figure(
+                go.Bar(
+                    x=resumo_3m["Competência"],
+                    y=resumo_3m["Pontos"],
+                    text=resumo_3m["Pontos"].map(lambda valor: f"{valor:,.2f}"),
+                    textposition="outside",
+                    marker_color="#F97316",
+                    name="Pontos",
+                )
+            )
+            grafico_mensal_3m.update_layout(
+                title="Pontos por mês",
+                xaxis_title="Competência",
+                yaxis_title="Pontos",
+                showlegend=False,
+                height=360,
+                margin=dict(l=20, r=20, t=55, b=20),
+            )
+            st.plotly_chart(grafico_mensal_3m, use_container_width=True)
+        with c2:
+            st.subheader("Resumo por competência")
+            st.dataframe(
+                resumo_3m,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Pontos": st.column_config.NumberColumn(format="%.2f"),
+                    "O.S.": st.column_config.NumberColumn(format="%d"),
+                    "Dias com produção": st.column_config.NumberColumn(format="%d"),
+                },
+            )
+        diario_3m = (
+            df_historico_3m.groupby("Data", as_index=False)["Pontos"].sum()
+            .sort_values("Data")
+        )
+        serie_diaria_3m = go.Figure(
+            go.Scatter(
+                x=diario_3m["Data"],
+                y=diario_3m["Pontos"],
+                mode="lines+markers",
+                line=dict(color="#012869", width=2),
+                marker=dict(size=6),
+                name="Pontos/dia",
+            )
+        )
+        serie_diaria_3m.update_layout(
+            title="Evolução diária nos últimos 3 meses",
+            xaxis_title="Data",
+            yaxis_title="Pontos",
+            height=360,
+            margin=dict(l=20, r=20, t=55, b=20),
+        )
+        st.plotly_chart(serie_diaria_3m, use_container_width=True)
+        st.download_button(
+            "⬇️ Exportar resumo dos últimos 3 meses (CSV)",
+            resumo_3m.to_csv(index=False).encode("utf-8-sig"),
+            file_name="minha_producao_ultimos_3_meses.csv",
+            mime="text/csv",
+            key="export_producao_3m",
+        )
+    st.caption("Fonte: competência atual, mês anterior e arquivo histórico de duas competências atrás. Para atualizar o terceiro mês, configure `producao_dois_meses_atras_spreadsheet_id` nos Secrets do Streamlit.")

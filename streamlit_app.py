@@ -164,6 +164,8 @@ def tela_login() -> None:
                     with st.spinner("Autenticando..."):
                         success, message = auth.login(identifier, password)
                     if success:
+                        if st.session_state.get("force_password_change", False):
+                            st.rerun()
                         st.switch_page(PAGINA_INICIO)
                     else:
                         st.error(f"❌ {message}")
@@ -198,7 +200,14 @@ def tela_trocar_senha() -> None:
                 unsafe_allow_html=True,
             )
 
-            identifier = st.text_input("Seu Login ou User", placeholder="Ex: Z659935")
+            primeiro_acesso = bool(st.session_state.get("force_password_change", False))
+            if primeiro_acesso:
+                info_usuario = st.session_state.get("user_info", {}) or {}
+                identifier = str(info_usuario.get("login") or info_usuario.get("user") or "")
+                st.info("Primeiro acesso: altere a senha temporária para liberar o portal.")
+                st.text_input("Conta autenticada", value=identifier, disabled=True)
+            else:
+                identifier = st.text_input("Seu Login ou User", placeholder="Ex: Z659935")
             old_pass = st.text_input(
                 "Senha Atual", type="password", placeholder="Digite sua senha atual"
             )
