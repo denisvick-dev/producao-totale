@@ -224,6 +224,67 @@ st.caption(
 
 
 # ====================================================
+# 5B. PRÉVIA DE PRODUTIVIDADE (MESMA BASE DA PÁGINA DE DETALHE)
+# ====================================================
+if producao.get("ok"):
+    st.divider()
+    render_section_header("📊", "Produção em foco", badge="Prod + Gpon")
+    p1, p2, p3, p4 = st.columns(4)
+
+    with p1:
+        render_kpi(
+            p1,
+            "O.S. Realizadas",
+            fmt_num(producao["os"]),
+            sub="Visitas executadas no mês",
+            tema="cinza",
+        )
+    with p2:
+        render_kpi(
+            p2,
+            "Prévia de Pontos",
+            fmt_num(producao["pontos"], 2),
+            sub=(
+                f"Prod: {fmt_num(producao['pontos_prod'], 2)} · "
+                f"Gpon: {fmt_num(producao['pontos_gpon'], 2)}"
+            ),
+            tema="azul",
+            colorida=True,
+        )
+    with p3:
+        render_kpi(
+            p3,
+            "Projeção Fim do Mês",
+            fmt_num(producao["projecao"], 2),
+            sub=(
+                f"Média {fmt_num(producao['media_diaria'], 2)} pts/dia × "
+                f"{producao['dias_restantes']} dias restantes"
+            ),
+            tema="laranja",
+            colorida=True,
+        )
+    with p4:
+        variacao = float(producao["variacao_media"])
+        render_kpi(
+            p4,
+            "Média por O.S.",
+            fmt_num(producao["media_os"], 2),
+            sub=f"Média da operação: {fmt_num(producao['media_operacao'], 2)}",
+            tema="verde",
+            delta=f"{fmt_num(variacao, 1)}% vs média da operação",
+            delta_tipo=(
+                "up" if variacao > 0 else "down" if variacao < 0 else "neutral"
+            ),
+            colorida=True,
+        )
+
+    st.caption(
+        f"Prévia da base de produção até {producao['data_ref'].strftime('%d/%m/%Y')}. "
+        "A projeção e os detalhes completos ficam em Produtividade."
+    )
+
+
+# ====================================================
 # 6. ATALHOS
 # ====================================================
 st.divider()

@@ -13,6 +13,12 @@ import plotly.graph_objects as go
 import requests
 import streamlit as st
 
+from utils._config import (
+    get_producao_mes_anterior_spreadsheet_id,
+    get_producao_spreadsheet_id,
+)
+from utils._datasources import carregar_base_producao as carregar_base_producao_fonte
+
 # ====================================================
 # 1. CONFIGURAÇÃO DA PÁGINA
 # ====================================================
@@ -135,140 +141,16 @@ SPREADSHEET_ID_PRODUCAO_MES_ANTERIOR = "1vGWZaUL9AHLKHSr5gD0yoOx4dqYaAyHf"
 
 @st.cache_data(ttl=600, show_spinner=False)
 def carregar_base_producao() -> pd.DataFrame:
-    urls = [
-        f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID_PRODUCAO}/export?format=xlsx",
-        f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID_PRODUCAO}/export?format=csv",
-        f"https://drive.google.com/uc?export=download&id={SPREADSHEET_ID_PRODUCAO}",
-    ]
-    for url in urls:
-        try:
-            resp = requests.get(url, timeout=(5, 30))
-        except requests.RequestException:
-            continue
-        if resp.status_code != 200 or len(resp.content) <= 100:
-            continue
-
-        content = resp.content
-        if url.endswith("format=xlsx"):
-            try:
-                abas = pd.read_excel(
-                    io.BytesIO(content), sheet_name=None, engine="openpyxl"
-                )
-                abas_alvo = {
-                    str(nome).strip().lower(): df
-                    for nome, df in abas.items()
-                    if str(nome).strip().lower() in ("prod", "gpon") and not df.empty
-                }
-                if abas_alvo:
-                    frames = []
-                    for nome_aba in ("prod", "gpon"):
-                        df_aba = abas_alvo.get(nome_aba)
-                        if df_aba is not None:
-                            df_aba = df_aba.copy()
-                            df_aba["__origem__"] = nome_aba.title()
-                            if nome_aba == "gpon":
-                                col_contrato = Utilitarios.buscar_coluna(
-                                    df_aba, ["CONTRATO", "OS", "O.S."]
-                                )
-                                if col_contrato:
-                                    df_aba = df_aba.drop_duplicates(
-                                        subset=[col_contrato], keep="first"
-                                    )
-                            frames.append(df_aba)
-                    if frames:
-                        return pd.concat(frames, ignore_index=True)
-            except Exception:
-                pass
-
-        for csv_kwargs in (
-            {"sep": None, "engine": "python", "encoding": "utf-8"},
-            {"sep": ";", "encoding": "latin-1"},
-            {"sep": ",", "encoding": "utf-8"},
-        ):
-            csv_kwargs: dict[str, Any] = dict(csv_kwargs)
-            try:
-                df = pd.read_csv(io.BytesIO(content), **csv_kwargs)
-                if not df.empty and df.shape[1] > 1:
-                    return df
-            except Exception:
-                continue
-        try:
-            df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
-            if not df.empty and df.shape[1] > 1:
-                return df
-        except Exception:
-            continue
-    return pd.DataFrame()
+    """Base atual (Prod + Gpon), compartilhada com a Visão Geral."""
+    return carregar_base_producao_fonte(get_producao_spreadsheet_id())
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def carregar_base_producao_mes_anterior() -> pd.DataFrame:
-    """Carrega a planilha de produção do mês anterior (abas Prod + Gpon)."""
-    urls = [
-        f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID_PRODUCAO_MES_ANTERIOR}/export?format=xlsx",
-        f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID_PRODUCAO_MES_ANTERIOR}/export?format=csv",
-        f"https://drive.google.com/uc?export=download&id={SPREADSHEET_ID_PRODUCAO_MES_ANTERIOR}",
-    ]
-    for url in urls:
-        try:
-            resp = requests.get(url, timeout=(5, 30))
-        except requests.RequestException:
-            continue
-        if resp.status_code != 200 or len(resp.content) <= 100:
-            continue
-
-        content = resp.content
-        if url.endswith("format=xlsx"):
-            try:
-                abas = pd.read_excel(
-                    io.BytesIO(content), sheet_name=None, engine="openpyxl"
-                )
-                abas_alvo = {
-                    str(nome).strip().lower(): df
-                    for nome, df in abas.items()
-                    if str(nome).strip().lower() in ("prod", "gpon") and not df.empty
-                }
-                if abas_alvo:
-                    frames = []
-                    for nome_aba in ("prod", "gpon"):
-                        df_aba = abas_alvo.get(nome_aba)
-                        if df_aba is not None:
-                            df_aba = df_aba.copy()
-                            df_aba["__origem__"] = nome_aba.title()
-                            if nome_aba == "gpon":
-                                col_contrato = Utilitarios.buscar_coluna(
-                                    df_aba, ["CONTRATO", "OS", "O.S."]
-                                )
-                                if col_contrato:
-                                    df_aba = df_aba.drop_duplicates(
-                                        subset=[col_contrato], keep="first"
-                                    )
-                            frames.append(df_aba)
-                    if frames:
-                        return pd.concat(frames, ignore_index=True)
-            except Exception:
-                pass
-
-        for csv_kwargs in (
-            {"sep": None, "engine": "python", "encoding": "utf-8"},
-            {"sep": ";", "encoding": "latin-1"},
-            {"sep": ",", "encoding": "utf-8"},
-        ):
-            csv_kwargs: dict[str, Any] = dict(csv_kwargs)
-            try:
-                df = pd.read_csv(io.BytesIO(content), **csv_kwargs)
-                if not df.empty and df.shape[1] > 1:
-                    return df
-            except Exception:
-                continue
-
-        try:
-            df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
-            if not df.empty and df.shape[1] > 1:
-                return df
-        except Exception:
-            continue
-    return pd.DataFrame()
+    """Base do mês anterior, com os mesmos fallbacks de leitura da base atual."""
+    return carregar_base_producao_fonte(
+        get_producao_mes_anterior_spreadsheet_id()
+    )
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -1353,416 +1235,454 @@ meta_dia_principal = (
 )
 
 # ====================================================
-# 13. DASHBOARD OPERACIONAL & CARDS
+# 13. NAVEGAÇÃO ORGANIZADA POR ASSUNTO
 # ====================================================
-render_section_header("⚙️", "Resumo de Execução Física (Mês Atual)")
-kr1, kr2, kr3, kr4 = st.columns(4)
-
-with kr1:
-    st.markdown(
-        _criar_card_tooltip(
-            "O.S. Realizadas",
-            str(t_os),
-            "cinza",
-            "Visitas executadas",
-            "📋",
-            "Total O.S. no período",
-        ),
-        unsafe_allow_html=True,
-    )
-with kr2:
-    st.markdown(
-        _criar_card_tooltip(
-            "Prévia de Pontos",
-            Utilitarios.formatar_numero(t_pontos, 2),
-            "azul",
-            f"Prod: {Utilitarios.formatar_numero(pontos_prod, 2)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon, 2)}",
-            "🎯",
-            "Prévia total (Prod + Gpon)",
-        ),
-        unsafe_allow_html=True,
-    )
-with kr3:
-    st.markdown(
-        _criar_card_tooltip(
-            "Projeção Fim do Mês",
-            Utilitarios.formatar_numero(t_projecao, 2),
-            "escuro",
-            sub_proj,
-            "📈",
-            tip_proj,
-        ),
-        unsafe_allow_html=True,
-    )
-with kr4:
-    st.markdown(
-        _criar_card_tooltip(
-            "Média por O.S.",
-            Utilitarios.formatar_numero(media_pontos, 2),
-            "verde",
-            f"{icone_var} {txt_var} vs média da operação",
-            "📊",
-            f"Média da operação: {Utilitarios.formatar_numero(media_os_geral, 2)} pts/O.S.",
-        ),
-        unsafe_allow_html=True,
-    )
-
-st.write("")
-st.write("")
-
-# 4 cards na segunda linha
-kr6, kr7, kr8 = st.columns(3)
-
-with kr6:
-    sub_share = (
-        f"Participação no projeto {projeto_tecnico}"
-        if projeto_tecnico
-        else "Participação no total"
-    )
-    tip_share = (
-        f"Seus pontos ÷ pontos totais do projeto <b>{projeto_tecnico}</b>. "
-        f"Total do projeto: {Utilitarios.formatar_numero(pontos_projeto, 2)} pts."
-        if projeto_tecnico
-        else "Seus pontos ÷ pontos totais da operação"
-    )
-    st.markdown(
-        _criar_card_tooltip(
-            "Share de Pontos",
-            txt_share,
-            "azul",
-            sub_share,
-            "🧩",
-            tip_share,
-        ),
-        unsafe_allow_html=True,
-    )
-with kr7:
-    st.markdown(
-        _criar_card_tooltip(
-            "Média Pontos/Dia",
-            Utilitarios.formatar_numero(media_diaria, 2),
-            "verde",
-            f"Em {dias_com_os} dia(s) com produção",
-            "⚡",
-            "Pontos totais ÷ dias efetivamente com O.S.",
-        ),
-        unsafe_allow_html=True,
-    )
-with kr8:
-    st.markdown(
-        _criar_card_tooltip(
-            "Dias Úteis Restantes",
-            str(dias_brutos),
-            "cinza",
-            f"Mês de referência: {pd.Timestamp(data_ref).strftime('%m/%Y')}",
-            "📆",
-            "Segunda a sábado (exceto domingos e feriados), até o fim do mês",
-        ),
-        unsafe_allow_html=True,
-    )
-
-# ====================================================
-# MINI-DASHBOARD DO MÊS ANTERIOR
-# ====================================================
-st.write("")
-with st.container(border=True):
-    render_section_header("📅", "Histórico Operacional — Mês Anterior")
-
-    if not df_prod_mes_ant.empty:
-        dias_com_os_ant = 1
-        if col_data_ant and col_data_ant in df_prod_mes_ant.columns:
-            datas_validas_ant = pd.to_datetime(df_prod_mes_ant[col_data_ant]).dropna()
-            dias_com_os_ant = max(datas_validas_ant.dt.normalize().nunique(), 1)
-
-        media_diaria_ant = pontos_mes_anterior / dias_com_os_ant
-        media_pontos_ant = (
-            pontos_mes_anterior / t_os_mes_anterior if t_os_mes_anterior > 0 else 0.0
-        )
-
-        km1, km2, km3, km4 = st.columns(4)
-        with km1:
-            st.markdown(
-                _criar_card_tooltip(
-                    "O.S. Mês Anterior",
-                    str(t_os_mes_anterior),
-                    "cinza",
-                    "Volume total concluído",
-                    "📋",
-                    "Quantidade de ordens executadas no mês fechado",
-                ),
-                unsafe_allow_html=True,
-            )
-        with km2:
-            st.markdown(
-                _criar_card_tooltip(
-                    "Pontos Mês Anterior",
-                    Utilitarios.formatar_numero(pontos_mes_anterior, 2),
-                    "roxo",
-                    f"Prod: {Utilitarios.formatar_numero(pontos_prod_mes_ant, 2)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon_mes_ant, 2)}",
-                    "🏆",
-                    "Pontuação acumulada consolidada",
-                ),
-                unsafe_allow_html=True,
-            )
-        with km3:
-            st.markdown(
-                _criar_card_tooltip(
-                    "Média Pontos/Dia (Ant)",
-                    Utilitarios.formatar_numero(media_diaria_ant, 2),
-                    "verde",
-                    f"Em {dias_com_os_ant} dias de produção",
-                    "⚡",
-                    "Pontos totais do mês passado dividido por dias trabalhados",
-                ),
-                unsafe_allow_html=True,
-            )
-        with km4:
-            st.markdown(
-                _criar_card_tooltip(
-                    "Média por O.S. (Ant)",
-                    Utilitarios.formatar_numero(media_pontos_ant, 2),
-                    "azul",
-                    "Densidade de pontos por visita",
-                    "📊",
-                    "Pontos totais ÷ quantidade de O.S. no mês passado",
-                ),
-                unsafe_allow_html=True,
-            )
-
-        status_final_ant = "🔴 Não Atingida"
-        cor_feedback = "alerta"
-        for meta in sorted(METAS_MENSAIS, reverse=True):
-            if pontos_mes_anterior >= meta:
-                status_final_ant = f"🏆 Meta de {meta} Pontos Atingida!"
-                cor_feedback = "ok"
-                break
-
-        st.write("")
-        render_insight(
-            f"**Status de Fechamento do Mês Anterior:** {status_final_ant} "
-            f"com total de **{Utilitarios.formatar_numero(pontos_mes_anterior, 2)}** pontos acumulados.",
-            tipo=cor_feedback,
-        )
-    else:
-        st.info(
-            "💡 Nenhum dado de histórico do mês anterior foi encontrado para o seu perfil."
-        )
-
-st.write("---")
-
-# ====================================================
-# 14. PAINEL DE METAS
-# ====================================================
-render_section_header("🏆", "Painel de Metas Mensais")
 st.caption(
-    f"🗓️ {dias_brutos} dias úteis restantes (referência: "
-    f"{pd.Timestamp(data_ref).strftime('%d/%m/%Y')}) · "
-    "projeções consideram o ritmo atual até o fim do mês."
+    "Resumo, metas e evolução ficam em abas; o filtro de período acima vale "
+    "para todos os números desta página."
+)
+tab_resumo, tab_metas, tab_evolucao = st.tabs(
+    ["📊 Resumo", "🎯 Metas e Cenários", "📈 Evolução Diária"]
 )
 
-# ── Cenários de fechamento ──
-colunas_cenario = st.columns(3)
-cenario_tipos = (
-    ("🟦 Conservador", "conservador", "cinza",
-     "Mediana dos últimos 14 dias (dias sem O.S. = zero)"),
-    ("🟩 Provável", "provavel", "verde",
-     "Média dos dias com O.S., mesmo critério do card do topo"),
-    ("🟧 Otimista", "otimista", "laranja",
-     "Melhor janela de 7 dias das últimas 4 semanas"),
-)
-for coluna, (rotulo, chave, tema, tooltip) in zip(colunas_cenario, cenario_tipos):
-    with coluna:
-        projecao_cenario = ProcessamentoDados.projetar_por_cenario(
-            t_pontos, cenarios_metas.get(chave, 0.0), dias_brutos
-        )
+with tab_resumo:
+    # ====================================================
+    # 13. DASHBOARD OPERACIONAL & CARDS
+    # ====================================================
+    render_section_header(
+        "⚙️", "Resumo do Período Selecionado", badge="Produção individual"
+    )
+    kr1, kr2, kr3, kr4 = st.columns(4)
+
+    with kr1:
         st.markdown(
             _criar_card_tooltip(
-                rotulo,
-                Utilitarios.formatar_numero(projecao_cenario, 2),
-                tema,
-                f"{Utilitarios.formatar_numero(cenarios_metas.get(chave, 0.0), 2)} pts/dia",
-                "🔮",
-                tooltip,
+                "O.S. Realizadas",
+                str(t_os),
+                "cinza",
+                "Visitas executadas",
+                "📋",
+                "Total O.S. no período",
+            ),
+            unsafe_allow_html=True,
+        )
+    with kr2:
+        st.markdown(
+            _criar_card_tooltip(
+                "Prévia de Pontos",
+                Utilitarios.formatar_numero(t_pontos, 2),
+                "azul",
+                f"Prod: {Utilitarios.formatar_numero(pontos_prod, 2)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon, 2)}",
+                "🎯",
+                "Prévia total (Prod + Gpon)",
+            ),
+            unsafe_allow_html=True,
+        )
+    with kr3:
+        st.markdown(
+            _criar_card_tooltip(
+                "Projeção Fim do Mês",
+                Utilitarios.formatar_numero(t_projecao, 2),
+                "escuro",
+                sub_proj,
+                "📈",
+                tip_proj,
+            ),
+            unsafe_allow_html=True,
+        )
+    with kr4:
+        st.markdown(
+            _criar_card_tooltip(
+                "Média por O.S.",
+                Utilitarios.formatar_numero(media_pontos, 2),
+                "verde",
+                f"{icone_var} {txt_var} vs média da operação",
+                "📊",
+                f"Média da operação: {Utilitarios.formatar_numero(media_os_geral, 2)} pts/O.S.",
             ),
             unsafe_allow_html=True,
         )
 
+    st.divider()
+    render_section_header("🧩", "Contexto e Ritmo", badge="Operação")
+    kr6, kr7, kr8, kr9 = st.columns(4)
 
-def _aplicar_styler(df: pd.DataFrame, func: Any, coluna: str) -> Any:
-    subset = cast(Any, [coluna])
-    if hasattr(df.style, "map"):
-        return df.style.map(func, subset=subset)
-    estilo_antigo = getattr(df.style, "applymap", None)
-    if estilo_antigo is not None:
-        return estilo_antigo(func, subset=subset)
-    return df.style
-
-
-def _cor_chance(valor: Any) -> str:
-    estilos = {
-        "Alta": ("#DCFCE7", "#166534"),
-        "Média": ("#FEF9C3", "#854D0E"),
-        "Baixa": ("#FEE2E2", "#991B1B"),
-    }
-    fundo, texto = estilos.get(str(valor), ("#F1F5F9", "#475569"))
-    return (
-        f"background-color:{fundo};color:{texto};font-weight:800;"
-        "text-align:center;border-radius:4px;"
-    )
-
-
-if not df_metas.empty and col_pontos:
-    styler_metas = _aplicar_styler(
-        df_metas, Utilitarios.colorir_metas, "Pontos/Dia Necessário"
-    )
-    try:
-        styler_metas = styler_metas.map(_cor_chance, subset=["Chance"])
-    except Exception:
-        pass
-
-    st.dataframe(
-        styler_metas,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Meta": st.column_config.NumberColumn("🎯 Meta Mensal", format="%.0f"),
-            "Pontos Atuais": st.column_config.NumberColumn(
-                "📌 Pontos Atuais", format="%.2f"
-            ),
-            "Progresso": st.column_config.ProgressColumn(
-                "📊 Progresso", min_value=0.0, max_value=100.0, format="%.1f%%"
-            ),
-            "Faltam": st.column_config.NumberColumn("➖ Faltam", format="%.2f"),
-            "Pontos/Dia Necessário": st.column_config.NumberColumn(
-                "📅 Pontos/Dia Necessário",
-                format="%.2f",
-                help="Faltam ÷ dias úteis restantes (sem domingos e feriados)",
-            ),
-            "Projeção": st.column_config.NumberColumn(
-                "🔮 Projeção Provável", format="%.2f",
-                help="Pontos atuais + média dos dias com O.S. × dias úteis restantes",
-            ),
-            "Chance": st.column_config.TextColumn(
-                "🎲 Chance", help="Alta / Média / Baixa conforme o cenário provável",
-            ),
-            "Vs Meta": st.column_config.TextColumn("📈 Vs Meta"),
-            "Situação": st.column_config.TextColumn("Status"),
-        },
-    )
-    st.caption(
-        "🎨 **Régua de cores** (Pontos/Dia Necessário): 🟦 ≥ 400 · 🟩 ≥ 300 · "
-        "🟨 ≥ 275 · 🟥 < 275 · **Chance** é uma leitura simplificada do cenário "
-        "provável, não uma probabilidade estatística."
-    )
-
-    # ── Drill-down: O.S. que compõem os pontos ──
-    st.markdown("##### 🔍 Detalhar as O.S. de uma meta")
-    botoes = st.columns(len(df_metas))
-    for coluna_botao, (_, linha_meta) in zip(botoes, df_metas.iterrows()):
-        with coluna_botao:
-            meta_atual = int(linha_meta["Meta"])
-            if st.button(
-                f"Meta {meta_atual}",
-                key=f"drill_meta_{meta_atual}",
-                width="stretch",
-            ):
-                st.session_state["meta_detalhe"] = meta_atual
-
-    meta_selecionada = st.session_state.get("meta_detalhe")
-    if meta_selecionada is not None:
-        col_os_detalhe = Utilitarios.buscar_coluna(
-            df_tec_prod,
-            ["OS", "O.S.", "ORDEM", "CONTRATO", "NUM_OS", "ID_OS", "Nº OS"],
+    with kr6:
+        sub_share = (
+            f"Participação no projeto {projeto_tecnico}"
+            if projeto_tecnico
+            else "Participação no total"
         )
-        col_tec_detalhe = Utilitarios.buscar_coluna(
-            df_tec_prod, ["TECNICO", "TÉCNICO", "NOME", "NOME EQUIPE"]
+        tip_share = (
+            f"Seus pontos ÷ pontos totais do projeto <b>{projeto_tecnico}</b>. "
+            f"Total do projeto: {Utilitarios.formatar_numero(pontos_projeto, 2)} pts."
+            if projeto_tecnico
+            else "Seus pontos ÷ pontos totais da operação"
         )
-        tamanho = len(df_tec_prod)
-        df_detalhe = pd.DataFrame(
-            {
-                "Data": (
-                    pd.to_datetime(df_tec_prod[col_data]).dt.strftime("%d/%m/%Y").to_numpy()
-                    if col_data and col_data in df_tec_prod.columns
-                    else ["—"] * tamanho
-                ),
-                "O.S.": (
-                    df_tec_prod[col_os_detalhe].astype(str).to_numpy()
-                    if col_os_detalhe
-                    else [f"Registro {i + 1}" for i in range(tamanho)]
-                ),
-                "Origem": (
-                    df_tec_prod[col_origem].astype(str).to_numpy()
-                    if col_origem
-                    else ["—"] * tamanho
-                ),
-                "Pontos": df_tec_prod[col_pontos].to_numpy(),
-                "Técnico": (
-                    df_tec_prod[col_tec_detalhe].astype(str).to_numpy()
-                    if col_tec_detalhe
-                    else [nome_exibicao] * tamanho
-                ),
-            }
-        ).sort_values("Pontos", ascending=False, ignore_index=True)
+        st.markdown(
+            _criar_card_tooltip(
+                "Share de Pontos",
+                txt_share,
+                "azul",
+                sub_share,
+                "🧩",
+                tip_share,
+            ),
+            unsafe_allow_html=True,
+        )
+    with kr7:
+        st.markdown(
+            _criar_card_tooltip(
+                "Média Pontos/Dia",
+                Utilitarios.formatar_numero(media_diaria, 2),
+                "verde",
+                f"Em {dias_com_os} dia(s) com produção",
+                "⚡",
+                "Pontos totais ÷ dias efetivamente com O.S.",
+            ),
+            unsafe_allow_html=True,
+        )
+    with kr8:
+        st.markdown(
+            _criar_card_tooltip(
+                "Dias Úteis Restantes",
+                str(dias_brutos),
+                "cinza",
+                f"Mês de referência: {pd.Timestamp(data_ref).strftime('%m/%Y')}",
+                "📆",
+                "Segunda a sábado (exceto domingos e feriados), até o fim do mês",
+            ),
+            unsafe_allow_html=True,
+        )
+    with kr9:
+        posicao_txt = (
+            Utilitarios.formatar_posicao(posicao_geral)
+            if posicao_geral is not None
+            else "—"
+        )
+        sub_posicao = (
+            f"Entre {total_tecnicos} técnico(s) na operação"
+            if total_tecnicos
+            else "Ranking indisponível nesta base"
+        )
+        st.markdown(
+            _criar_card_tooltip(
+                "Posição no Ranking",
+                posicao_txt,
+                "laranja",
+                sub_posicao,
+                "🏅",
+                "Ranking por pontos da operação no período da base completa",
+            ),
+            unsafe_allow_html=True,
+        )
 
-        with st.container(border=True):
-            cab, fechar = st.columns([5, 1])
-            with cab:
+    # ====================================================
+    # MINI-DASHBOARD DO MÊS ANTERIOR
+    # ====================================================
+    st.write("")
+    with st.container(border=True):
+        render_section_header("📅", "Histórico Operacional — Mês Anterior")
+
+        if not df_prod_mes_ant.empty:
+            dias_com_os_ant = 1
+            if col_data_ant and col_data_ant in df_prod_mes_ant.columns:
+                datas_validas_ant = pd.to_datetime(df_prod_mes_ant[col_data_ant]).dropna()
+                dias_com_os_ant = max(datas_validas_ant.dt.normalize().nunique(), 1)
+
+            media_diaria_ant = pontos_mes_anterior / dias_com_os_ant
+            media_pontos_ant = (
+                pontos_mes_anterior / t_os_mes_anterior if t_os_mes_anterior > 0 else 0.0
+            )
+
+            km1, km2, km3, km4 = st.columns(4)
+            with km1:
                 st.markdown(
-                    f"**O.S. consideradas no acumulado da meta {meta_selecionada}** "
-                    f"— {tamanho} registro(s), {Utilitarios.formatar_numero(t_pontos, 2)} pts"
+                    _criar_card_tooltip(
+                        "O.S. Mês Anterior",
+                        str(t_os_mes_anterior),
+                        "cinza",
+                        "Volume total concluído",
+                        "📋",
+                        "Quantidade de ordens executadas no mês fechado",
+                    ),
+                    unsafe_allow_html=True,
                 )
-            with fechar:
-                if st.button("✖ Fechar", key="fechar_detalhe_meta"):
-                    st.session_state["meta_detalhe"] = None
-                    st.rerun()
-            st.dataframe(
-                df_detalhe,
-                width="stretch",
-                hide_index=True,
-                height=320,
-                column_config={
-                    "Pontos": st.column_config.NumberColumn("Pontos", format="%.2f"),
-                },
+            with km2:
+                st.markdown(
+                    _criar_card_tooltip(
+                        "Pontos Mês Anterior",
+                        Utilitarios.formatar_numero(pontos_mes_anterior, 2),
+                        "roxo",
+                        f"Prod: {Utilitarios.formatar_numero(pontos_prod_mes_ant, 2)} | Gpon: {Utilitarios.formatar_numero(pontos_gpon_mes_ant, 2)}",
+                        "🏆",
+                        "Pontuação acumulada consolidada",
+                    ),
+                    unsafe_allow_html=True,
+                )
+            with km3:
+                st.markdown(
+                    _criar_card_tooltip(
+                        "Média Pontos/Dia (Ant)",
+                        Utilitarios.formatar_numero(media_diaria_ant, 2),
+                        "verde",
+                        f"Em {dias_com_os_ant} dias de produção",
+                        "⚡",
+                        "Pontos totais do mês passado dividido por dias trabalhados",
+                    ),
+                    unsafe_allow_html=True,
+                )
+            with km4:
+                st.markdown(
+                    _criar_card_tooltip(
+                        "Média por O.S. (Ant)",
+                        Utilitarios.formatar_numero(media_pontos_ant, 2),
+                        "azul",
+                        "Densidade de pontos por visita",
+                        "📊",
+                        "Pontos totais ÷ quantidade de O.S. no mês passado",
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+            status_final_ant = "🔴 Não Atingida"
+            cor_feedback = "alerta"
+            for meta in sorted(METAS_MENSAIS, reverse=True):
+                if pontos_mes_anterior >= meta:
+                    status_final_ant = f"🏆 Meta de {meta} Pontos Atingida!"
+                    cor_feedback = "ok"
+                    break
+
+            st.write("")
+            render_insight(
+                f"**Status de Fechamento do Mês Anterior:** {status_final_ant} "
+                f"com total de **{Utilitarios.formatar_numero(pontos_mes_anterior, 2)}** pontos acumulados.",
+                tipo=cor_feedback,
             )
-            st.download_button(
-                "⬇️ Baixar detalhe (CSV)",
-                data=df_detalhe.to_csv(index=False).encode("utf-8-sig"),
-                file_name=f"os_meta_{meta_selecionada}.csv",
-                mime="text/csv",
+        else:
+            st.info(
+                "💡 Nenhum dado de histórico do mês anterior foi encontrado para o seu perfil."
             )
-else:
-    st.info("💡 Coluna de pontos não identificada — Painel de Metas indisponível.")
 
-st.write("---")
+    st.write("---")
 
-# ====================================================
-# 15. EVOLUÇÃO TEMPORAL
-# ====================================================
-if col_data and col_data in df_tec_prod.columns and col_pontos:
-    render_section_header("📊", "Evolução Diária vs Meta")
 
-    df_tempo = (
-        df_tec_prod.groupby(col_data)
-        .agg(Pontos=(col_pontos, "sum"), Qtd_OS=(col_pontos, "count"))
-        .reset_index()
-        .sort_values(col_data)
-    )
-
-    # Garante que a coluna de data seja date pura (sem hora)
-    df_tempo[col_data] = pd.to_datetime(df_tempo[col_data]).dt.normalize()
-
-    st.plotly_chart(
-        Graficos.grafico_combo_raiox(
-            df_tempo, col_data, "Qtd_OS", "Pontos", meta_dia=meta_dia_principal
-        ),
-        width="stretch",
-        config={"displayModeBar": False},
-    )
+with tab_metas:
+    # ====================================================
+    # 14. PAINEL DE METAS
+    # ====================================================
+    render_section_header("🏆", "Painel de Metas Mensais")
     st.caption(
-        f"➖ Linha tracejada = ritmo diário necessário para alcançar a meta de "
-        f"**{Utilitarios.formatar_numero(META_PRINCIPAL, 0)} pontos** no mês "
-        f"({Utilitarios.formatar_numero(meta_dia_principal, 2)} pts/dia · "
-        f"sem domingos e feriados)."
+        f"🗓️ {dias_brutos} dias úteis restantes (referência: "
+        f"{pd.Timestamp(data_ref).strftime('%d/%m/%Y')}) · "
+        "projeções consideram o ritmo atual até o fim do mês."
     )
 
-st.write("---")
+    # ── Cenários de fechamento ──
+    colunas_cenario = st.columns(3)
+    cenario_tipos = (
+        ("🟦 Conservador", "conservador", "cinza",
+         "Mediana dos últimos 14 dias (dias sem O.S. = zero)"),
+        ("🟩 Provável", "provavel", "verde",
+         "Média dos dias com O.S., mesmo critério do card do topo"),
+        ("🟧 Otimista", "otimista", "laranja",
+         "Melhor janela de 7 dias das últimas 4 semanas"),
+    )
+    for coluna, (rotulo, chave, tema, tooltip) in zip(colunas_cenario, cenario_tipos):
+        with coluna:
+            projecao_cenario = ProcessamentoDados.projetar_por_cenario(
+                t_pontos, cenarios_metas.get(chave, 0.0), dias_brutos
+            )
+            st.markdown(
+                _criar_card_tooltip(
+                    rotulo,
+                    Utilitarios.formatar_numero(projecao_cenario, 2),
+                    tema,
+                    f"{Utilitarios.formatar_numero(cenarios_metas.get(chave, 0.0), 2)} pts/dia",
+                    "🔮",
+                    tooltip,
+                ),
+                unsafe_allow_html=True,
+            )
+
+
+    def _aplicar_styler(df: pd.DataFrame, func: Any, coluna: str) -> Any:
+        subset = cast(Any, [coluna])
+        if hasattr(df.style, "map"):
+            return df.style.map(func, subset=subset)
+        estilo_antigo = getattr(df.style, "applymap", None)
+        if estilo_antigo is not None:
+            return estilo_antigo(func, subset=subset)
+        return df.style
+
+
+    def _cor_chance(valor: Any) -> str:
+        estilos = {
+            "Alta": ("#DCFCE7", "#166534"),
+            "Média": ("#FEF9C3", "#854D0E"),
+            "Baixa": ("#FEE2E2", "#991B1B"),
+        }
+        fundo, texto = estilos.get(str(valor), ("#F1F5F9", "#475569"))
+        return (
+            f"background-color:{fundo};color:{texto};font-weight:800;"
+            "text-align:center;border-radius:4px;"
+        )
+
+
+    if not df_metas.empty and col_pontos:
+        styler_metas = _aplicar_styler(
+            df_metas, Utilitarios.colorir_metas, "Pontos/Dia Necessário"
+        )
+        try:
+            styler_metas = styler_metas.map(_cor_chance, subset=["Chance"])
+        except Exception:
+            pass
+
+        st.dataframe(
+            styler_metas,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "Meta": st.column_config.NumberColumn("🎯 Meta Mensal", format="%.0f"),
+                "Pontos Atuais": st.column_config.NumberColumn(
+                    "📌 Pontos Atuais", format="%.2f"
+                ),
+                "Progresso": st.column_config.ProgressColumn(
+                    "📊 Progresso", min_value=0.0, max_value=100.0, format="%.1f%%"
+                ),
+                "Faltam": st.column_config.NumberColumn("➖ Faltam", format="%.2f"),
+                "Pontos/Dia Necessário": st.column_config.NumberColumn(
+                    "📅 Pontos/Dia Necessário",
+                    format="%.2f",
+                    help="Faltam ÷ dias úteis restantes (sem domingos e feriados)",
+                ),
+                "Projeção": st.column_config.NumberColumn(
+                    "🔮 Projeção Provável", format="%.2f",
+                    help="Pontos atuais + média dos dias com O.S. × dias úteis restantes",
+                ),
+                "Chance": st.column_config.TextColumn(
+                    "🎲 Chance", help="Alta / Média / Baixa conforme o cenário provável",
+                ),
+                "Vs Meta": st.column_config.TextColumn("📈 Vs Meta"),
+                "Situação": st.column_config.TextColumn("Status"),
+            },
+        )
+        st.caption(
+            "🎨 **Régua de cores** (Pontos/Dia Necessário): 🟦 ≥ 400 · 🟩 ≥ 300 · "
+            "🟨 ≥ 275 · 🟥 < 275 · **Chance** é uma leitura simplificada do cenário "
+            "provável, não uma probabilidade estatística."
+        )
+
+        # ── Drill-down: O.S. que compõem os pontos ──
+        st.markdown("##### 🔍 Detalhar as O.S. de uma meta")
+        botoes = st.columns(len(df_metas))
+        for coluna_botao, (_, linha_meta) in zip(botoes, df_metas.iterrows()):
+            with coluna_botao:
+                meta_atual = int(linha_meta["Meta"])
+                if st.button(
+                    f"Meta {meta_atual}",
+                    key=f"drill_meta_{meta_atual}",
+                    width="stretch",
+                ):
+                    st.session_state["meta_detalhe"] = meta_atual
+
+        meta_selecionada = st.session_state.get("meta_detalhe")
+        if meta_selecionada is not None:
+            col_os_detalhe = Utilitarios.buscar_coluna(
+                df_tec_prod,
+                ["OS", "O.S.", "ORDEM", "CONTRATO", "NUM_OS", "ID_OS", "Nº OS"],
+            )
+            col_tec_detalhe = Utilitarios.buscar_coluna(
+                df_tec_prod, ["TECNICO", "TÉCNICO", "NOME", "NOME EQUIPE"]
+            )
+            tamanho = len(df_tec_prod)
+            df_detalhe = pd.DataFrame(
+                {
+                    "Data": (
+                        pd.to_datetime(df_tec_prod[col_data]).dt.strftime("%d/%m/%Y").to_numpy()
+                        if col_data and col_data in df_tec_prod.columns
+                        else ["—"] * tamanho
+                    ),
+                    "O.S.": (
+                        df_tec_prod[col_os_detalhe].astype(str).to_numpy()
+                        if col_os_detalhe
+                        else [f"Registro {i + 1}" for i in range(tamanho)]
+                    ),
+                    "Origem": (
+                        df_tec_prod[col_origem].astype(str).to_numpy()
+                        if col_origem
+                        else ["—"] * tamanho
+                    ),
+                    "Pontos": df_tec_prod[col_pontos].to_numpy(),
+                    "Técnico": (
+                        df_tec_prod[col_tec_detalhe].astype(str).to_numpy()
+                        if col_tec_detalhe
+                        else [nome_exibicao] * tamanho
+                    ),
+                }
+            ).sort_values("Pontos", ascending=False, ignore_index=True)
+
+            with st.container(border=True):
+                cab, fechar = st.columns([5, 1])
+                with cab:
+                    st.markdown(
+                        f"**O.S. consideradas no acumulado da meta {meta_selecionada}** "
+                        f"— {tamanho} registro(s), {Utilitarios.formatar_numero(t_pontos, 2)} pts"
+                    )
+                with fechar:
+                    if st.button("✖ Fechar", key="fechar_detalhe_meta"):
+                        st.session_state["meta_detalhe"] = None
+                        st.rerun()
+                st.dataframe(
+                    df_detalhe,
+                    width="stretch",
+                    hide_index=True,
+                    height=320,
+                    column_config={
+                        "Pontos": st.column_config.NumberColumn("Pontos", format="%.2f"),
+                    },
+                )
+                st.download_button(
+                    "⬇️ Baixar detalhe (CSV)",
+                    data=df_detalhe.to_csv(index=False).encode("utf-8-sig"),
+                    file_name=f"os_meta_{meta_selecionada}.csv",
+                    mime="text/csv",
+                )
+    else:
+        st.info("💡 Coluna de pontos não identificada — Painel de Metas indisponível.")
+
+    st.write("---")
+
+
+with tab_evolucao:
+    # ====================================================
+    # 15. EVOLUÇÃO TEMPORAL
+    # ====================================================
+    if col_data and col_data in df_tec_prod.columns and col_pontos:
+        render_section_header("📊", "Evolução Diária vs Meta")
+
+        df_tempo = (
+            df_tec_prod.groupby(col_data)
+            .agg(Pontos=(col_pontos, "sum"), Qtd_OS=(col_pontos, "count"))
+            .reset_index()
+            .sort_values(col_data)
+        )
+
+        # Garante que a coluna de data seja date pura (sem hora)
+        df_tempo[col_data] = pd.to_datetime(df_tempo[col_data]).dt.normalize()
+
+        st.plotly_chart(
+            Graficos.grafico_combo_raiox(
+                df_tempo, col_data, "Qtd_OS", "Pontos", meta_dia=meta_dia_principal
+            ),
+            width="stretch",
+            config={"displayModeBar": False},
+        )
+        st.caption(
+            f"➖ Linha tracejada = ritmo diário necessário para alcançar a meta de "
+            f"**{Utilitarios.formatar_numero(META_PRINCIPAL, 0)} pontos** no mês "
+            f"({Utilitarios.formatar_numero(meta_dia_principal, 2)} pts/dia · "
+            f"sem domingos e feriados)."
+        )
+
+    st.write("---")

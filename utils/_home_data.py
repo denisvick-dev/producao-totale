@@ -15,29 +15,37 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import requests
 import streamlit as st
 
 from utils._config import (
-    ATIVOS_SPREADSHEET_ID,
-    PRODUCAO_SPREADSHEET_ID,
+    get_consultivo_spreadsheet_id,
     get_indicadores_spreadsheet_id,
 )
+from utils._datasources import (
+    baixar_autenticado,
+    baixar_url,
+    carregar_base_producao,
+    interpretar_conteudo,
+    urls_publicas,
+)
 
-CONSULTIVO_SPREADSHEET_ID = "1YOWJ0HuGcEP2vJaZwl2kcgrtNgsoMBDs"
 META_PRINCIPAL = 400.0
-TIMEOUT_REDE = (5, 30)
 
 _IDENTIDADE_COLS = [
     "LOGIN", "MATRICULA", "MATRÍCULA", "RE", "NETSALES", "ID", "CODIGO",
     "CÓDIGO", "USER", "USUARIO", "USUÁRIO", "USERNAME", "CODAUXEQUIP",
-    "CODAUXEQUIPE", "CÓDAUXEQUIPE", "COD_AUX_EQUIPE", "LOGIN NETSALES",
-    "LOGIN_NETSALES", "LOGIN CONEXÃO DO VENDEDOR", "LOGIN CONEXAO DO VENDEDOR",
-    "VENDEDOR", "TECNICO", "TÉCNICO", "NOME", "NOME EQUIPE",
+    "CODAUXEQUIPE", "CÓDAUXEQUIPE", "COD_AUX_EQUIPE", "CÓDEQUIPE",
+    "COD EQUIPE", "LOGIN NETSALES", "LOGIN_NETSALES",
+    "LOGIN CONEXÃO DO VENDEDOR", "LOGIN CONEXAO DO VENDEDOR",
 ]
-_TECNICO_COLS = ["TECNICO", "TÉCNICO", "NOME", "NOME EQUIPE", "VENDEDOR"]
+_NOME_COLS = [
+    "VENDEDOR", "TECNICO", "TÉCNICO", "NOME", "NOME EQUIPE",
+    "NOME TÉCNICO", "NOME_TECNICO", "COLABORADOR",
+]
+_TECNICO_COLS = _NOME_COLS
 _DATA_COLS = ["DATA", "DATA AGENDAMENTO", "DATA CONCLUSÃO", "DATA_EXECUCAO", "DATE"]
 _PONTOS_COLS = ["PONTOS", "PONTO", "PTS", "PONTUACAO", "PREVIA"]
+_ORIGEM_COLS = ["ORIGEM", "__ORIGEM__", "TIPO", "SISTEMA", "FONTE", "TIPO_OS"]
 
 
 def _norm(valor: Any) -> str:
@@ -102,25 +110,24 @@ def _converter_data(serie: pd.Series) -> pd.Series:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _baixar_arquivo(file_id: str, formato: str) -> bytes | None:
-    """Baixa XLSX ou CSV exportado publicamente (com fallback de Drive)."""
+def _baixar_arquivo(file_id: str, destino: str) -> bytes | None:
+    """Baixa uma planilha usando o mesmo conjunto de fallbacks das demais telas.
+
+    ``destino`` pode ser uma preferência (``xlsx``/``csv``), uma URL específica
+    do Drive ou ``autenticado``. Páginas HTML de login/erro devolvidas com HTTP
+    200 são descartadas pelo loader compartilhado.
+    """
     if not file_id:
         return None
-    urls = (
-        [f"https://docs.google.com/spreadsheets/d/{file_id}/export?format={formato}",
-         f"https://drive.google.com/uc?export=download&id={file_id}"]
-        if formato == "xlsx"
-        else [f"https://drive.google.com/uc?export=download&id={file_id}",
-              f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv"]
-    )
-    for url in urls:
-        try:
-            resposta = requests.get(url, timeout=TIMEOUT_REDE)
-        except requests.RequestException:
-            continue
-        if resposta.status_code == 200 and len(resposta.content) > 100:
-            return resposta.content
-    return None
+    if destino.startswith("http"):
+        return baixar_url(destino)
+    if destino == "autenticado":
+        return baixar_autenticado(file_id)
+    for url in urls_publicas(file_id, destino):
+        conteudo = baixar_url(url)
+        if conteudo:
+            return conteudo
+    return baixar_autenticado(file_id)
 
 
 def _ler_csv(conteudo: bytes) -> pd.DataFrame:
@@ -141,6 +148,12 @@ def _ler_csv(conteudo: bytes) -> pd.DataFrame:
 def _filtrar_tecnico(
     df: pd.DataFrame, nome: str, login: str, user: str
 ) -> pd.DataFrame:
+    """Prioriza login/matrícula; usa nome só quando não há vínculo exato.
+
+    Colunas de nome podem representar equipe ou supervisor e repetir o mesmo
+    valor em registros de técnicos diferentes. Por isso um match de matrícula
+    nunca é somado a um match amplo de nome.
+    """
     alvos = {
         _norm(valor)
         for valor in (nome, login, user)
@@ -149,14 +162,21 @@ def _filtrar_tecnico(
     if not alvos:
         return df.iloc[0:0].copy()
 
-    mask = pd.Series(False, index=df.index)
-    for coluna in df.columns:
-        if _norm(coluna) not in {_norm(c) for c in _IDENTIDADE_COLS}:
-            continue
-        serie = df[coluna].astype(str).str.strip().str.upper()
-        serie = serie.str.replace(r"\.0$", "", regex=True).map(_norm)
-        mask |= serie.isin(alvos)
-    return df.loc[mask].copy()
+    def mascara(colunas: list[str]) -> pd.Series:
+        candidatas = {_norm(c) for c in colunas}
+        mask = pd.Series(False, index=df.index)
+        for coluna in df.columns:
+            if _norm(coluna) not in candidatas:
+                continue
+            serie = df[coluna].astype(str).str.strip().str.upper()
+            serie = serie.str.replace(r"\.0$", "", regex=True).map(_norm)
+            mask |= serie.isin(alvos)
+        return mask
+
+    mask_id = mascara(_IDENTIDADE_COLS)
+    if bool(mask_id.any()):
+        return df.loc[mask_id].copy()
+    return df.loc[mascara(_NOME_COLS)].copy()
 
 
 def _dias_uteis_restantes(data_referencia: pd.Timestamp) -> int:
@@ -174,38 +194,18 @@ def _dias_uteis_restantes(data_referencia: pd.Timestamp) -> int:
 # ====================================================
 @st.cache_data(ttl=600, show_spinner=False)
 def _carregar_producao() -> pd.DataFrame:
-    conteudo = _baixar_arquivo(PRODUCAO_SPREADSHEET_ID, "xlsx")
-    if conteudo and conteudo.startswith(b"PK"):
-        try:
-            abas = pd.read_excel(
-                io.BytesIO(conteudo), sheet_name=None, engine="openpyxl"
-            )
-            quadros = []
-            for nome_aba in ("prod", "gpon"):
-                aba = next(
-                    (df for nome, df in abas.items() if _norm(nome) == nome_aba),
-                    None,
-                )
-                if aba is not None and not aba.empty:
-                    aba = aba.copy()
-                    aba["__origem__"] = nome_aba.upper()
-                    quadros.append(aba)
-            if quadros:
-                return pd.concat(quadros, ignore_index=True)
-        except Exception:
-            pass
-
-    if conteudo:
-        df = _ler_csv(conteudo)
-        if not df.empty:
-            return df
-    return pd.DataFrame()
+    """Prévia e Produtividade usam o mesmo parser Prod + Gpon e os mesmos fallbacks."""
+    return carregar_base_producao(baixador=_baixar_arquivo)
 
 
 def resumo_producao(
     nome: str, login: str, user: str, is_admin: bool = False
 ) -> dict[str, Any]:
-    """Prévia de pontos/O.S. do mês da última data encontrada na base."""
+    """Prévia de pontos/O.S. do mês da última data encontrada na base.
+
+    Além dos dois cartões principais da Visão Geral, devolve os mesmos números
+    usados nos cartões de Produtividade (Prod/Gpon, projeção e média por O.S.).
+    """
     df = _carregar_producao()
     if df.empty:
         return {"ok": False, "motivo": "base de produção indisponível"}
@@ -215,8 +215,10 @@ def resumo_producao(
     if not col_pontos or not col_data:
         return {"ok": False, "motivo": "colunas de pontos/data não encontradas"}
 
+    col_origem = _encontrar_coluna(df, _ORIGEM_COLS)
+    col_tec = _encontrar_coluna(df, _TECNICO_COLS)
     df = df.copy()
-    df[col_pontos] = _normalizar_pontos(df[col_pontos])
+    df["_PONTOS"] = _normalizar_pontos(df[col_pontos])
     df["_DATA"] = _converter_data(df[col_data])
     datas = df["_DATA"].dropna()
     if datas.empty:
@@ -224,24 +226,67 @@ def resumo_producao(
 
     referencia = datas.max().normalize()
     dias_normalizados = df["_DATA"].dt.normalize()
-    no_mes = df.loc[
+    mes_completo = df.loc[
         (dias_normalizados >= referencia.replace(day=1))
         & (dias_normalizados <= referencia),
     ].copy()
-    if not is_admin:
-        no_mes = _filtrar_tecnico(no_mes, nome, login, user)
+    no_mes = (
+        mes_completo
+        if is_admin
+        else _filtrar_tecnico(mes_completo, nome, login, user)
+    )
+    if no_mes.empty:
+        return {
+            "ok": False,
+            "motivo": "nenhum registro de produção para o login neste mês",
+        }
 
-    col_tec = _encontrar_coluna(no_mes, _TECNICO_COLS)
-    pontos = float(no_mes[col_pontos].sum())
+    pontos_operacao = float(mes_completo["_PONTOS"].sum())
+    os_operacao = int(len(mes_completo))
+    media_operacao = pontos_operacao / os_operacao if os_operacao else 0.0
+
+    pontos = float(no_mes["_PONTOS"].sum())
+    total_os = int(len(no_mes))
+    pontos_prod = 0.0
+    pontos_gpon = pontos
+
+    if col_origem and col_origem in no_mes.columns:
+        origens = no_mes[col_origem].astype(str).str.upper()
+        mask_gpon = origens.str.contains("GPON", na=False)
+        mask_prod = origens.str.contains("PROD", na=False) & ~mask_gpon
+        outros = ~(mask_prod | mask_gpon)
+        pontos_prod = float(no_mes.loc[mask_prod, "_PONTOS"].sum())
+        pontos_gpon = float(
+            no_mes.loc[mask_gpon | outros, "_PONTOS"].sum()
+        )
+
+    datas_com_os = no_mes["_DATA"].dropna().dt.normalize().nunique()
+    dias_com_os = max(int(datas_com_os), 1)
+    media_diaria = pontos / dias_com_os
+    dias_restantes = _dias_uteis_restantes(referencia)
+    projecao = pontos + media_diaria * dias_restantes
+    media_os = pontos / total_os if total_os else 0.0
+    variacao_media = (
+        (media_os / media_operacao - 1.0) * 100.0 if media_operacao else 0.0
+    )
+
     return {
         "ok": True,
         "pontos": pontos,
-        "os": int(len(no_mes)),
+        "os": total_os,
         "meta": META_PRINCIPAL,
         "progresso": min(100.0, pontos / META_PRINCIPAL * 100.0),
-        "dias_restantes": _dias_uteis_restantes(referencia),
+        "dias_restantes": dias_restantes,
         "data_ref": referencia.date(),
-        "tecnicos": int(no_mes[col_tec].nunique()) if col_tec else 0,
+        "tecnicos": int(mes_completo[col_tec].nunique()) if col_tec else 0,
+        "pontos_prod": pontos_prod,
+        "pontos_gpon": pontos_gpon,
+        "media_diaria": media_diaria,
+        "projecao": projecao,
+        "media_os": media_os,
+        "media_operacao": media_operacao,
+        "variacao_media": variacao_media,
+        "dias_com_os": dias_com_os,
     }
 
 
@@ -250,11 +295,11 @@ def resumo_producao(
 # ====================================================
 @st.cache_data(ttl=600, show_spinner=False)
 def _carregar_consultivo() -> pd.DataFrame:
-    conteudo = _baixar_arquivo(CONSULTIVO_SPREADSHEET_ID, "csv")
+    conteudo = _baixar_arquivo(get_consultivo_spreadsheet_id(), "csv")
     if not conteudo:
         return pd.DataFrame()
 
-    df = _ler_csv(conteudo)
+    df, _qualidade = interpretar_conteudo(conteudo)
     if df.empty:
         return pd.DataFrame()
 
