@@ -284,12 +284,17 @@ class Utilitarios:
                 "background-color:#1E3A8A;color:#FFFFFF;font-weight:800;"
                 "border-left:3px solid #0F172A;text-align:center;"
             )
-        if v >= 300:
+        if v >= 375:
+            return (
+                "background-color:#DBEAFE;color:#1E40AF;font-weight:800;"
+                "border-left:3px solid #3B82F6;text-align:center;"
+            )
+        if v >= 350:
             return (
                 "background-color:#DCFCE7;color:#166534;font-weight:700;"
                 "border-left:3px solid #22C55E;text-align:center;"
             )
-        if v >= 275:
+        if v >= 300:
             return (
                 "background-color:#FEF9C3;color:#854D0E;font-weight:700;"
                 "border-left:3px solid #EAB308;text-align:center;"
@@ -1241,8 +1246,8 @@ st.caption(
     "Resumo, metas e evolução ficam em abas; o filtro de período acima vale "
     "para todos os números desta página."
 )
-tab_resumo, tab_metas, tab_evolucao = st.tabs(
-    ["📊 Resumo", "🎯 Metas e Cenários", "📈 Evolução Diária"]
+tab_resumo, tab_metas, tab_evolucao, tab_historico = st.tabs(
+    ["📊 Resumo", "🎯 Metas e Cenários", "📈 Minha Evolução", "🧾 Histórico das minhas O.S."]
 )
 
 with tab_resumo:
@@ -1568,9 +1573,9 @@ with tab_metas:
             },
         )
         st.caption(
-            "🎨 **Régua de cores** (Pontos/Dia Necessário): 🟦 ≥ 400 · 🟩 ≥ 300 · "
-            "🟨 ≥ 275 · 🟥 < 275 · **Chance** é uma leitura simplificada do cenário "
-            "provável, não uma probabilidade estatística."
+            "🎯 **Marcos de pontos**: 300 · 350 · 375 · 400. "
+            "**Chance** é uma leitura simplificada do cenário provável, "
+            "não uma probabilidade estatística."
         )
 
         # ── Drill-down: O.S. que compõem os pontos ──
@@ -1668,8 +1673,31 @@ with tab_evolucao:
             .sort_values(col_data)
         )
 
-        # Garante que a coluna de data seja date pura (sem hora)
+        # Inclui datas sem movimento para diferenciá-las de produção baixa.
         df_tempo[col_data] = pd.to_datetime(df_tempo[col_data]).dt.normalize()
+        if "data_inicio" in locals() and "data_fim" in locals():
+            calendario = pd.DataFrame({col_data: pd.date_range(data_inicio, data_fim, freq="D")})
+            df_tempo = calendario.merge(df_tempo, on=col_data, how="left")
+            df_tempo["Qtd_OS"] = df_tempo["Qtd_OS"].fillna(0).astype(int)
+            df_tempo["Pontos"] = df_tempo["Pontos"].fillna(0.0)
+
+        if "data_fim" in locals():
+            fim_semana = pd.Timestamp(data_fim)
+            inicio_atual = fim_semana - pd.Timedelta(days=6)
+            inicio_anterior = fim_semana - pd.Timedelta(days=13)
+            fim_anterior = fim_semana - pd.Timedelta(days=7)
+            historico_7d = df_prod.copy()
+            if col_pontos in historico_7d.columns:
+                historico_7d[col_pontos] = Utilitarios.normalizar_pontos(historico_7d[col_pontos])
+                datas_hist = pd.to_datetime(historico_7d[col_data], errors="coerce")
+                atual = float(historico_7d.loc[datas_hist.between(inicio_atual, fim_semana), col_pontos].sum())
+                anterior = float(historico_7d.loc[datas_hist.between(inicio_anterior, fim_anterior), col_pontos].sum())
+                variacao_7d = ((atual - anterior) / abs(anterior) * 100) if anterior else None
+                v1, v2, v3 = st.columns(3)
+                v1.metric("Pontos · últimos 7 dias", f"{atual:.2f}")
+                v2.metric("Pontos · 7 dias anteriores", f"{anterior:.2f}")
+                v3.metric("Variação semanal", f"{variacao_7d:+.1f}%" if variacao_7d is not None else "Sem base anterior")
+                st.caption("Comparação usa os 7 dias até a data final selecionada e os 7 dias imediatamente anteriores.")
 
         st.plotly_chart(
             Graficos.grafico_combo_raiox(
@@ -1684,5 +1712,49 @@ with tab_evolucao:
             f"({Utilitarios.formatar_numero(meta_dia_principal, 2)} pts/dia · "
             f"sem domingos e feriados)."
         )
+        dias_sem_registro = df_tempo.loc[df_tempo["Qtd_OS"] == 0, col_data]
+        if not dias_sem_registro.empty:
+            st.info("Dias sem registro: " + ", ".join(dia.strftime("%d/%m") for dia in dias_sem_registro))
+        st.caption("Dia sem registro significa ausência de linha na fonte; não permite concluir que o técnico não trabalhou.")
 
     st.write("---")
+with tab_historico:
+    render_section_header("🧾", "Histórico pessoal de O.S.")
+    st.caption("Este histórico usa apenas registros filtrados para sua conta e para o período selecionado acima.")
+    historico = df_tec_prod.copy()
+    col_os_hist = Utilitarios.buscar_coluna(historico, ["OS", "O.S.", "ORDEM", "CONTRATO", "NUM_OS", "ID_OS", "Nº OS"])
+    col_tipo_hist = Utilitarios.buscar_coluna(historico, ["TIPO OS", "TIPO", "SERVICO", "SERVIÇO", "ORIGEM", "FONTE"])
+    col_status_hist = Utilitarios.buscar_coluna(historico, ["STATUS", "SITUACAO", "SITUAÇÃO", "STATUS OS"])
+    f1, f2, f3 = st.columns(3)
+    busca_hist = f1.text_input("Buscar O.S. / texto", key="busca_historico_os")
+    tipos_hist = ["Todos"] + (sorted(historico[col_tipo_hist].dropna().astype(str).unique().tolist()) if col_tipo_hist else [])
+    status_hist_opcoes = ["Todos"] + (sorted(historico[col_status_hist].dropna().astype(str).unique().tolist()) if col_status_hist else [])
+    tipo_hist = f2.selectbox("Tipo", tipos_hist, key="tipo_historico_os")
+    status_hist = f3.selectbox("Status", status_hist_opcoes, key="status_historico_os")
+    if col_tipo_hist and tipo_hist != "Todos":
+        historico = historico[historico[col_tipo_hist].astype(str) == tipo_hist]
+    if col_status_hist and status_hist != "Todos":
+        historico = historico[historico[col_status_hist].astype(str) == status_hist]
+    if busca_hist.strip():
+        mascara_busca = historico.astype(str).apply(
+            lambda coluna: coluna.str.contains(busca_hist.strip(), case=False, na=False, regex=False)
+        ).any(axis=1)
+        historico = historico[mascara_busca]
+    colunas_exibir = [col for col in [col_data, col_os_hist, col_tipo_hist, col_status_hist, col_pontos] if col and col in historico.columns]
+    if colunas_exibir:
+        saida_hist = historico[colunas_exibir].copy()
+        if col_data and col_data in saida_hist.columns:
+            saida_hist = saida_hist.sort_values(col_data, ascending=False, na_position="last")
+        st.caption(f"{len(saida_hist)} registro(s) encontrado(s).")
+        st.dataframe(saida_hist, hide_index=True, use_container_width=True)
+        st.download_button(
+            "⬇️ Exportar meus registros (CSV)",
+            saida_hist.to_csv(index=False).encode("utf-8-sig"),
+            file_name="meu_historico_os.csv",
+            mime="text/csv",
+            key="export_meu_historico_os",
+        )
+    else:
+        st.warning("Não foram identificadas colunas adequadas para exibir o histórico.")
+    if not col_os_hist:
+        st.info("A fonte não possui identificador reconhecido de O.S.; a busca textual ainda filtra os campos disponíveis.")
