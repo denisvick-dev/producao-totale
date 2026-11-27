@@ -10,7 +10,7 @@ oficial de cada frente continua nas páginas específicas.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -108,8 +108,35 @@ with st.spinner("Reunindo seu resumo..."):
 
 
 # ====================================================
-# 4. AVISOS ACIONÁVEIS
+# 4. PREFERÊNCIAS DA SESSÃO E ALERTAS
 # ====================================================
+# Preferências valem para a sessão atual; não são armazenadas em base central.
+if "portal_favoritos" not in st.session_state:
+    st.session_state["portal_favoritos"] = ["Produtividade", "Indicadores"]
+if is_admin:
+    with st.sidebar.expander("⚙️ Configurar alertas (sessão)", expanded=False):
+        st.caption("Parâmetros temporários; serão redefinidos ao encerrar a sessão.")
+        st.session_state["alerta_atraso_dias"] = st.number_input(
+            "Alertar fonte após (dias)", min_value=1, max_value=30,
+            value=int(st.session_state.get("alerta_atraso_dias", 3)), step=1,
+        )
+        st.session_state["alerta_progresso_minimo"] = st.slider(
+            "Progresso mínimo da meta (%)", min_value=0, max_value=100,
+            value=int(st.session_state.get("alerta_progresso_minimo", 50)),
+        )
+else:
+    with st.sidebar.expander("🔔 Minhas preferências de alertas", expanded=False):
+        st.caption("Preferências pessoais válidas nesta sessão.")
+        st.session_state["alerta_fonte_ativo"] = st.checkbox(
+            "Avisar sobre fonte atrasada", value=st.session_state.get("alerta_fonte_ativo", True)
+        )
+        st.session_state["alerta_meta_ativo"] = st.checkbox(
+            "Avisar quando a meta estiver em risco", value=st.session_state.get("alerta_meta_ativo", True)
+        )
+        st.session_state["alerta_indicadores_ativo"] = st.checkbox(
+            "Avisar sobre indicadores pendentes", value=st.session_state.get("alerta_indicadores_ativo", True)
+        )
+
 avisos: list[tuple[str, str]] = []
 
 if not producao.get("ok"):
@@ -119,17 +146,22 @@ else:
     meta = float(producao["meta"])
     dias = int(producao["dias_restantes"])
     data_ref = producao["data_ref"]
-    if isinstance(data_ref, date) and (date.today() - data_ref).days >= 3:
+    atraso_limite = int(st.session_state.get("alerta_atraso_dias", 3))
+    progresso_minimo = int(st.session_state.get("alerta_progresso_minimo", 50))
+    if (is_admin or st.session_state.get("alerta_fonte_ativo", True)) and isinstance(data_ref, date) and (date.today() - data_ref).days >= atraso_limite:
         avisos.append(
             ("🕒 Fonte de produção atrasada",
              f"Última produção em {data_ref.strftime('%d/%m/%Y')}.")
         )
-    if pontos >= meta:
+    progresso_pct = float(producao.get("progresso", 0) or 0)
+    if (is_admin or st.session_state.get("alerta_meta_ativo", True)) and pontos < meta and progresso_pct < progresso_minimo:
+        avisos.append(("⚠️ Progresso abaixo do limite", f"Meta em {fmt_num(progresso_pct, 1)}%; limite configurado: {progresso_minimo}% ."))
+    if (is_admin or st.session_state.get("alerta_meta_ativo", True)) and pontos >= meta:
         avisos.append(
             ("🏆 Meta principal atingida",
              f"{fmt_num(pontos, 2)} pts de {fmt_num(meta)} pts.")
         )
-    elif dias > 0:
+    elif dias > 0 and (is_admin or st.session_state.get("alerta_meta_ativo", True)):
         necessario = (meta - pontos) / dias
         avisos.append(
             ("🎯 Ritmo para a meta principal",
@@ -141,10 +173,16 @@ if not consultivo.get("ok"):
     avisos.append(("⚠️ Consultivo indisponível", consultivo.get("motivo", "fonte sem dados")))
 
 if not qualidade.get("ok"):
-    avisos.append(
-        ("ℹ️ Qualidade sem prévia",
-         qualidade.get("motivo", "verifique seus registros no painel de Indicadores"))
-    )
+    if is_admin or st.session_state.get("alerta_indicadores_ativo", True):
+        avisos.append(
+            ("ℹ️ Qualidade sem prévia",
+             qualidade.get("motivo", "verifique seus registros no painel de Indicadores"))
+        )
+elif is_admin or st.session_state.get("alerta_indicadores_ativo", True):
+    pendentes = [item for item in qualidade.get("itens", []) if item.get("pct") is not None and item["pct"] < item.get("meta", 0)]
+    if pendentes:
+        nomes_pendentes = ", ".join(item["nome"] for item in pendentes[:3])
+        avisos.append(("📋 Indicadores pendentes", f"Abaixo da meta: {nomes_pendentes}. Consulte Indicadores para ver os detalhes."))
 
 for titulo, detalhe in avisos[:5]:
     render_insight(f"**{titulo}** — {detalhe}", tipo="alerta" if "⚠️" in titulo or "🕒" in titulo else "info")
@@ -222,6 +260,20 @@ st.caption(
     "use as páginas específicas do menu."
 )
 
+# Resumo em painel, atualizado automaticamente sempre que a página é aberta.
+st.divider()
+render_section_header("🗓️", "Resumo semanal · visão operacional")
+rw1, rw2, rw3, rw4 = st.columns(4)
+inicio_semana = date.today() - timedelta(days=date.today().weekday())
+rw1.metric("Semana iniciada em", inicio_semana.strftime("%d/%m/%Y"))
+rw2.metric("Produção registrada", f"{fmt_num(producao.get('pontos'), 2)} pts" if producao.get("ok") else "—")
+rw3.metric("Consultivos", fmt_num(consultivo.get("consultivos")) if consultivo.get("ok") else "—")
+rw4.metric("Indicadores na meta", f"{qualidade['na_meta']} / {qualidade['total']}" if qualidade.get("ok") else "—")
+st.caption(
+    "Resumo atualizado ao carregar esta página. As fontes atuais fornecem prévias do período/mês; "
+    "não há ainda histórico semanal consolidado para calcular variação semana contra semana."
+)
+
 
 # ====================================================
 # 5B. PRÉVIA DE PRODUTIVIDADE (MESMA BASE DA PÁGINA DE DETALHE)
@@ -288,40 +340,33 @@ if producao.get("ok"):
 # 6. ATALHOS
 # ====================================================
 st.divider()
-render_section_header("🚀", "Acesso rápido")
-a1, a2, a3, a4 = st.columns(4)
-
-with a1:
-    if st.button(
-        "📊 Produtividade\n pontos, metas e O.S.",
-        key="atalho_producao",
-        width="stretch",
-    ):
-        st.switch_page("pages/producao.py")
-with a2:
-    if st.button(
-        "🗣️ Consultivo\n funil, mix e vendas",
-        key="atalho_consultivo",
-        width="stretch",
-    ):
-        st.switch_page("pages/consultivo.py")
-with a3:
-    if st.button(
-        "⚡ Indicadores\n seus seis KPIs",
-        key="atalho_indicadores",
-        width="stretch",
-    ):
-        st.switch_page("pages/indicadores.py")
-with a4:
-    if is_admin:
-        if st.button(
-            "🛡️ Admin\n equipe, ranking e logins",
-            key="atalho_admin",
-            width="stretch",
-        ):
-            st.switch_page("pages/admin.py")
-    else:
-        st.info("🔒 Área Admin disponível apenas para gestores.")
+render_section_header("🚀", "Favoritos e acesso rápido")
+opcoes_atalho = ["Produtividade", "Consultivo", "Indicadores"] + (["Admin"] if is_admin else [])
+st.session_state["portal_favoritos"] = [
+    item for item in st.session_state["portal_favoritos"] if item in opcoes_atalho
+]
+st.multiselect(
+    "Escolha os atalhos desta sessão",
+    options=opcoes_atalho,
+    key="portal_favoritos",
+    help="A seleção fica disponível durante esta sessão e não é persistida entre logins.",
+)
+atalhos = {
+    "Produtividade": ("📊 Produtividade · pontos, metas e O.S.", "pages/producao.py"),
+    "Consultivo": ("🗣️ Consultivo · funil, mix e vendas", "pages/consultivo.py"),
+    "Indicadores": ("⚡ Indicadores · seus seis KPIs", "pages/indicadores.py"),
+    "Admin": ("🛡️ Admin · equipe, ranking e gestão", "pages/admin.py"),
+}
+favoritos = st.session_state.get("portal_favoritos", [])
+if favoritos:
+    cols = st.columns(min(len(favoritos), 4))
+    for i, favorito in enumerate(favoritos):
+        with cols[i % len(cols)]:
+            label, destino = atalhos[favorito]
+            if st.button(label, key=f"atalho_{favorito.lower()}", width="stretch"):
+                st.switch_page(destino)
+else:
+    st.info("Selecione ao menos um favorito para montar seus atalhos.")
 
 
 # ====================================================

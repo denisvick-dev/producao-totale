@@ -1207,11 +1207,11 @@ else:
     pts_gpon = total_pontos
     total_os = len(df_filtered)
 
-tec_acima_400, tec_criticos = 0, 0
+tec_acima_400, tec_proximo_meta = 0, 0
 if total_tecnicos > 0:
     pts_por_tec = df_filtered.groupby(col_tec)[col_pontos].sum()
     tec_acima_400 = int((pts_por_tec >= 400.00).sum())
-    tec_criticos = int(((pts_por_tec >= 275.00) & (pts_por_tec < 300.00)).sum())
+    tec_proximo_meta = int(((pts_por_tec >= 275.00) & (pts_por_tec < 300.00)).sum())
 
 # ── RENDERIZAÇÃO DA VISÃO GERAL NO PLACEHOLDER (Acima dos Filtros) ──
 with placeholder_visao_geral:
@@ -1270,9 +1270,9 @@ with placeholder_visao_geral:
         st.markdown(
             _card(
                 "Próximo da Meta (275-300)",
-                str(tec_criticos),
-                "vermelho" if tec_criticos > 0 else "verde",
-                f"{(tec_criticos / max(total_tecnicos, 1) * 100):.1f}% da equipe",
+                str(tec_proximo_meta),
+                "vermelho" if tec_proximo_meta > 0 else "verde",
+                f"{(tec_proximo_meta / max(total_tecnicos, 1) * 100):.1f}% da equipe",
                 "⚠️",
             ),
             unsafe_allow_html=True,
@@ -1397,11 +1397,12 @@ df_ranking = ProcessamentoAdmin.construir_ranking(
 df_ranking["Status"] = np.select(
     [
         df_ranking["Total Pontos"] >= 400.00,
+        df_ranking["Total Pontos"] >= 375.00,
+        df_ranking["Total Pontos"] >= 350.00,
         df_ranking["Total Pontos"] >= 300.00,
-        df_ranking["Total Pontos"] >= 275.00,
     ],
-    ["🏆 Elite", "✅ Meta", "🎯 Próximo da Meta"],
-    default="🔴 Crítico",
+    ["🏆 400 pontos", "💎 375 pontos", "✅ 350 pontos", "🎯 300 pontos"],
+    default="🔴 Abaixo de 300",
 )
 
 st.divider()
@@ -1414,6 +1415,8 @@ st.divider()
     tab_equipes,
     tab_graficos,
     tab_diagnostico,
+    tab_capacidade,
+    tab_mapa,
     tab_consultivo,
     tab_logins,
 ) = st.tabs(
@@ -1422,6 +1425,8 @@ st.divider()
         "👥 Por Equipe",
         "📈 Gráficos",
         "📊 Diagnóstico",
+        "⚖️ Capacidade",
+        "🗺️ Mapa Operacional",
         "💼 Visão Consultivo",
         "🔐 Logins",
     ]
@@ -1582,16 +1587,15 @@ with tab_graficos:
                     x=top15["Total Pontos"],
                     y=top15[col_tec].astype(str).str.title(),
                     orientation="h",
-                    marker_color=np.where(
-                        top15["Total Pontos"] >= 400.00,
-                        "#012869",
-                        np.where(
+                    marker_color=np.select(
+                        [
+                            top15["Total Pontos"] >= 400.00,
+                            top15["Total Pontos"] >= 375.00,
+                            top15["Total Pontos"] >= 350.00,
                             top15["Total Pontos"] >= 300.00,
-                            "#22C55E",
-                            np.where(
-                                top15["Total Pontos"] >= 275.00, "#F97316", "#EF4444"
-                            ),
-                        ),
+                        ],
+                        ["#012869", "#3B82F6", "#22C55E", "#F97316"],
+                        default="#EF4444",
                     ),
                     text=top15["Total Pontos"].apply(lambda x: f"{x:.2f}"),
                     textposition="outside",
@@ -1824,7 +1828,105 @@ with tab_diagnostico:
             st.info("Sem técnicos disponíveis.")
 
 # ====================================================
-# ── TAB 5: CONSULTIVO ──
+# ── DASHBOARDS ADMINISTRATIVOS: CAPACIDADE E MAPA ──
+# ====================================================
+with tab_capacidade:
+    render_section_header("⚖️", "Capacidade e Carga de Trabalho")
+    st.caption(
+        "Distribuição do volume registrado no período selecionado. Os dados representam carga observada, "
+        "não disponibilidade ou capacidade contratual."
+    )
+    df_carga = df_filtered.copy()
+    if df_carga.empty:
+        st.info("Não há registros para o período e filtros selecionados.")
+    else:
+        df_carga["_PONTOS_NUM"] = pd.to_numeric(df_carga[col_pontos], errors="coerce").fillna(0)
+        agrupadores = [col_tec] + ([col_equipe] if col_equipe and col_equipe in df_carga.columns else [])
+        carga = df_carga.groupby(agrupadores, dropna=False).agg(
+            **{"O.S.": (col_pontos, "size"), "Pontos": ("_PONTOS_NUM", "sum")}
+        ).reset_index()
+        if col_data and col_data in df_carga.columns:
+            dias_ativos = (
+                df_carga.groupby(agrupadores, dropna=False)[col_data]
+                .nunique()
+                .rename("Dias com registro")
+                .reset_index()
+            )
+            carga = carga.merge(dias_ativos, on=agrupadores, how="left")
+        else:
+            carga["Dias com registro"] = np.nan
+        carga["O.S./dia ativo"] = carga["O.S."] / carga["Dias com registro"].replace(0, np.nan)
+        carga["Participação do volume"] = carga["O.S."] / max(int(carga["O.S."].sum()), 1) * 100
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("O.S. no período", f"{len(df_carga):,}".replace(",", "."))
+        m2.metric("Técnicos com registros", f"{carga[col_tec].nunique():,}".replace(",", "."))
+        m3.metric("Média de O.S. por técnico", f"{carga['O.S.'].mean():.1f}")
+        m4.metric("Mediana de O.S. por técnico", f"{carga['O.S.'].median():.1f}")
+
+        esquerda, direita = st.columns([1.2, 1])
+        with esquerda:
+            fig_carga = px.bar(
+                carga.sort_values("O.S.", ascending=False).head(25),
+                x="O.S.", y=col_tec, color="O.S.", orientation="h",
+                title="Volume de O.S. por técnico (top 25)",
+                hover_data=["Pontos", "Dias com registro", "O.S./dia ativo"],
+                color_continuous_scale=["#93C5FD", "#1D4ED8"],
+            )
+            fig_carga.update_layout(yaxis={"categoryorder": "total ascending"}, height=650)
+            st.plotly_chart(fig_carga, use_container_width=True)
+        with direita:
+            if col_equipe and col_equipe in carga.columns:
+                por_equipe = carga.groupby(col_equipe, dropna=False).agg(
+                    Técnicos=(col_tec, "nunique"), **{"O.S.": ("O.S.", "sum"), "Pontos": ("Pontos", "sum")}
+                ).reset_index().sort_values("O.S.", ascending=False)
+                st.subheader("Resumo por equipe")
+                st.dataframe(por_equipe, hide_index=True, use_container_width=True)
+            st.subheader("Carga por técnico")
+            st.dataframe(
+                carga.sort_values("O.S.", ascending=False), hide_index=True, use_container_width=True,
+                column_config={
+                    "Pontos": st.column_config.NumberColumn(format="%.2f"),
+                    "O.S./dia ativo": st.column_config.NumberColumn(format="%.2f"),
+                    "Participação do volume": st.column_config.NumberColumn(format="%.1f%%"),
+                },
+            )
+        st.download_button(
+            "⬇️ Exportar carga de trabalho (CSV)",
+            carga.to_csv(index=False).encode("utf-8-sig"),
+            file_name="carga_trabalho.csv", mime="text/csv", key="export_carga_admin",
+        )
+
+with tab_mapa:
+    render_section_header("🗺️", "Mapa Operacional")
+    st.caption("Mapa restrito à administração. A localização depende de coordenadas presentes na base operacional.")
+    col_lat = Utilitarios.buscar_coluna(df_filtered, ["LATITUDE", "LAT", "COORDENADA LATITUDE"])
+    col_lon = Utilitarios.buscar_coluna(df_filtered, ["LONGITUDE", "LON", "LONG", "COORDENADA LONGITUDE"])
+    if not col_lat or not col_lon:
+        st.info("A base carregada não contém colunas reconhecíveis de latitude e longitude. Para habilitar o mapa, inclua coordenadas confiáveis na planilha de produção.")
+    elif df_filtered.empty:
+        st.info("Não há registros para o período e filtros selecionados.")
+    else:
+        pontos_mapa = df_filtered.copy()
+        pontos_mapa["_lat"] = pd.to_numeric(pontos_mapa[col_lat].astype(str).str.replace(",", ".", regex=False), errors="coerce")
+        pontos_mapa["_lon"] = pd.to_numeric(pontos_mapa[col_lon].astype(str).str.replace(",", ".", regex=False), errors="coerce")
+        pontos_mapa = pontos_mapa[
+            pontos_mapa["_lat"].between(-34, 6) & pontos_mapa["_lon"].between(-75, -32)
+        ].copy()
+        if pontos_mapa.empty:
+            st.warning("Foram encontradas colunas de coordenadas, mas nenhum par válido para o Brasil.")
+        else:
+            pontos_mapa["_volume"] = 1
+            pontos_mapa["_pontos"] = pd.to_numeric(pontos_mapa[col_pontos], errors="coerce").fillna(0)
+            local = pontos_mapa.groupby(["_lat", "_lon"], as_index=False).agg(
+                OS=("_volume", "sum"), Pontos=("_pontos", "sum")
+            )
+            st.metric("Locais mapeados", f"{len(local):,}".replace(",", "."))
+            st.map(local.rename(columns={"_lat": "lat", "_lon": "lon"}), latitude="lat", longitude="lon", size="OS", color="#F97316", zoom=5)
+            st.caption(f"Exibindo {len(pontos_mapa):,} registros com coordenadas válidas de {len(df_filtered):,} registros filtrados.")
+
+# ====================================================
+# ── TAB 7: CONSULTIVO ──
 # ====================================================
 with tab_consultivo:
     render_section_header("💼", "Vendas Consultivas & Produtos")
