@@ -5,7 +5,9 @@ import streamlit as st
 
 USERS_SPREADSHEET_ID: str = "1MolnI0nY4SHWsuqqpa0QTKJ9Phuq1RH5YB2caWKuyVE"
 PRODUCAO_SPREADSHEET_ID: str = "11Dp9WdZYUrT_LBvfo07Mi8muKXZykU7v"
+PRODUCAO_MES_ANTERIOR_SPREADSHEET_ID: str = "1vGWZaUL9AHLKHSr5gD0yoOx4dqYaAyHf"
 ATIVOS_SPREADSHEET_ID: str = "1LQKDcLshC6XSXLBVWaEYSpxrro6uydyU9pwDLc38pEg"
+CONSULTIVO_SPREADSHEET_ID: str = "1YOWJ0HuGcEP2vJaZwl2kcgrtNgsoMBDs"
 
 # Planilha (Excel/Google Sheets) com as abas operacionais de indicadores:
 # Geoloc_Os, OS_Digital, Aderencia_Ura, Nr35, Tec1 e Baixa_Pda.
@@ -32,6 +34,24 @@ def _segredo(chave: str) -> str:
     except Exception:  # noqa: BLE001 - sem secrets.toml em ambiente local
         return ""
     return str(valor or "").strip()
+
+
+def get_producao_spreadsheet_id() -> str:
+    """ID da base de produção atual (Secret > ``utils/_config.py``)."""
+    return _segredo("producao_spreadsheet_id") or PRODUCAO_SPREADSHEET_ID
+
+
+def get_producao_mes_anterior_spreadsheet_id() -> str:
+    """ID da base de produção do mês anterior (Secret > configuração)."""
+    return (
+        _segredo("producao_mes_anterior_spreadsheet_id")
+        or PRODUCAO_MES_ANTERIOR_SPREADSHEET_ID
+    )
+
+
+def get_consultivo_spreadsheet_id() -> str:
+    """ID da base consultiva (Secret > ``utils/_config.py``)."""
+    return _segredo("consultivo_spreadsheet_id") or CONSULTIVO_SPREADSHEET_ID
 
 
 def get_indicadores_spreadsheet_id() -> str:

@@ -9,7 +9,8 @@ metas e indicadores operacionais.
 - `pages/home.py`: Visão Geral unificada (página inicial após o login).
 - `pages/`: visões de Início, Produção, Consultivo, Indicadores e Admin.
 - `components/`: design system e componentes visuais reutilizáveis.
-- `utils/`: autenticação, banco, prévias da Visão Geral e configurações.
+- `utils/`: autenticação, banco, prévias da Visão Geral, configurações e leitura centralizada das bases.
+- `utils/_datasources.py`: loader único das bases de produção (abas `Prod` + `Gpon`), com validação de HTML, fallbacks de XLSX/CSV/Drive e acesso autenticado por service account.
 - `data/`: arquivos locais de apoio.
 
 ## Execução local
@@ -35,7 +36,9 @@ metas e indicadores operacionais.
 
 As credenciais do Google devem ser fornecidas pelo mecanismo de Secrets do
 Streamlit, usando a chave `gcp_service_account`. Os IDs das planilhas ficam
-centralizados em `utils/_config.py`.
+centralizados em `utils/_config.py`. Para trocar a competência sem editar
+código, use os Secrets `producao_spreadsheet_id` e
+`producao_mes_anterior_spreadsheet_id`.
 
 ## Painel de Indicadores
 
@@ -75,17 +78,23 @@ Admin só aparece para perfis administrativos.
 ## Visão Geral
 
 Após o login, o portal abre `pages/home.py`. A página reúne prévia de pontos,
-O.S., consultivos/vendas e indicadores na meta, além de atalhos para as páginas
-de detalhe. Os números vêm de `utils/_home_data.py`, com cache; se alguma fonte
-estiver indisponível, a página mostra um aviso em vez de falhar. O cálculo
-oficial continua nas páginas específicas.
+O.S., consultivos/vendas e indicadores na meta, além dos quatro indicadores de
+produção e de atalhos para as páginas de detalhe. Os números vêm de
+`utils/_home_data.py`, com cache; se alguma fonte estiver indisponível, a página
+mostra um aviso em vez de falhar. A base de produção é lida pelo mesmo parser de
+`pages/producao.py`, então os dois painéis não divergem por diferença de abas ou
+fallback de download. O cálculo oficial continua nas páginas específicas.
 
-## Painel de Metas
+## Produtividade e Painel de Metas
 
-`pages/producao.py` mostra três cenários de fechamento (conservador, provável e
-otimista), os pontos/dia necessários, uma classificação simplificada de chance
-(alta/média/baixa) e os dias úteis restantes. Os botões abaixo da tabela abrem
-as O.S. que compõem o acumulado de cada meta, com opção de exportar em CSV.
+`pages/producao.py` organiza o conteúdo em três abas — **Resumo**, **Metas e
+Cenários** e **Evolução Diária** — mantendo o filtro de período visível acima de
+todas elas. O Resumo reúne os cartões operacionais, contexto/ritmo e histórico
+do mês anterior. A aba de metas mostra três cenários de fechamento
+(conservador, provável e otimista), os pontos/dia necessários, uma
+classificação simplificada de chance (alta/média/baixa) e os dias úteis
+restantes. Os botões abaixo da tabela abrem as O.S. que compõem o acumulado de
+cada meta, com opção de exportar em CSV.
 
 ## Autenticação
 
